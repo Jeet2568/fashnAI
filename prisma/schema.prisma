@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  role      String   @default("USER") // ADMIN or USER
+  credits   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  jobs      Job[]
+  creditLogs CreditLog[]
+}
+
+model Resource {
+  id        String   @id @default(cuid())
+  type      String
+  name      String
+  prompt    String
+  thumbnail String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  inputParams String   // JSON string of input parameters
+  outputPaths String?  // JSON string of output file paths
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  serial    Int       @unique // Global serial number (01, 02...)
+  name      String
+  slug      String    // "01_ClientName"
+  rootFolder String?  // "C:/NAS/ClientName" - Admin assigned root path
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  serial    Int      // Serial number within the client/date context
+  name      String
+  slug      String   // "01_ProductName"
+  
+  // Logical Date for folder structure (DD-MM-YYYY)
+  shotDate  DateTime @default(now()) 
+  
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id])
+  
+  // The absolute path on the NAS where this product lives
+  path      String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CreditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Int
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model SystemSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
