@@ -25,6 +25,11 @@ export default function AdminGalleryPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [newFolderName, setNewFolderName] = useState("");
 
+    // File Operation State
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [clipboard, setClipboard] = useState<{ action: "copy" | "move", paths: string[] } | null>(null);
+
     const fetchAssets = async () => {
         setLoadingAssets(true);
         try {
@@ -80,7 +85,7 @@ export default function AdminGalleryPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     action: "delete",
-                    path: path
+                    sourcePaths: [path]
                 })
             });
 
@@ -93,6 +98,58 @@ export default function AdminGalleryPage() {
         } catch (error) {
             toast.error("Error deleting item");
         }
+    };
+
+    const handleToolbarAction = async (action: "move" | "copy" | "delete") => {
+        if (selectedItems.size === 0) {
+            toast.error(`Please select items to ${action}`);
+            return;
+        }
+
+        if (action === "delete") {
+            if (!confirm(`Are you sure you want to delete ${selectedItems.size} items?`)) return;
+            try {
+                const res = await fetch("/api/filesystem", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "delete",
+                        sourcePaths: Array.from(selectedItems)
+                    })
+                });
+                if (res.ok) {
+                    toast.success("Items deleted");
+                    setSelectedItems(new Set());
+                    setIsSelectMode(false);
+                    fetchAssets();
+                } else toast.error("Failed to delete items");
+            } catch { toast.error("Error deleting items"); }
+        } else {
+            setClipboard({ action, paths: Array.from(selectedItems) });
+            setSelectedItems(new Set());
+            setIsSelectMode(false);
+            toast.success(`${selectedItems.size} items ready to ${action}. Navigate and Paste.`);
+        }
+    };
+
+    const handlePaste = async () => {
+        if (!clipboard) return toast.error("Nothing to paste");
+        try {
+            const res = await fetch("/api/filesystem", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: clipboard.action,
+                    sourcePaths: clipboard.paths,
+                    destPath: selectedFolderPath
+                })
+            });
+            if (res.ok) {
+                toast.success(`Items ${clipboard.action === 'move' ? 'moved' : 'copied'} successfully`);
+                setClipboard(null);
+                fetchAssets();
+            } else toast.error("Paste failed");
+        } catch { toast.error("Error pasting items"); }
     };
 
     return (
@@ -127,12 +184,31 @@ export default function AdminGalleryPage() {
                 </div>
 
                 {/* Action Bar */}
-                <div className="flex items-center gap-1 bg-background border rounded-md p-1 shadow-sm">
-                    <Button variant="ghost" size="sm" className="h-8 px-3">Select</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3">Move</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3">Copy</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3">Paste</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50">Delete</Button>
+                <div className="flex items-center gap-1 bg-background border rounded-md p-1 shadow-sm overflow-x-auto">
+                    <Button
+                        variant={isSelectMode ? "secondary" : "ghost"}
+                        size="sm"
+                        className={cn("h-8 px-3", isSelectMode && "bg-primary/20 text-primary hover:bg-primary/30")}
+                        onClick={() => {
+                            setIsSelectMode(!isSelectMode);
+                            if (isSelectMode) setSelectedItems(new Set());
+                        }}
+                    >
+                        Select {selectedItems.size > 0 && `(${selectedItems.size})`}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-3" onClick={() => handleToolbarAction("move")}>Move</Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-3" onClick={() => handleToolbarAction("copy")}>Copy</Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-3 relative"
+                        onClick={handlePaste}
+                        disabled={!clipboard}
+                    >
+                        Paste
+                        {clipboard && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50" onClick={() => handleToolbarAction("delete")}>Delete</Button>
 
                     <div className="w-px h-4 bg-border mx-1" />
 
@@ -207,28 +283,53 @@ export default function AdminGalleryPage() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                {assets.filter(a => !a.isDirectory).map((file, i) => (
-                                    <div
-                                        key={file.path}
-                                        className="group relative aspect-[3/4] bg-muted rounded-md overflow-hidden border hover:border-primary transition-all cursor-pointer shadow-sm"
-                                        onClick={() => window.open(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`, '_blank')}
-                                    >
-                                        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="destructive" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(file.path, e)}>
-                                                <Trash2 className="w-3 h-3" />
-                                            </Button>
+                                {assets.filter(a => !a.isDirectory).map((file, i) => {
+                                    const isSelected = selectedItems.has(file.path);
+                                    return (
+                                        <div
+                                            key={file.path}
+                                            className={cn(
+                                                "group relative aspect-[3/4] bg-muted rounded-md overflow-hidden border transition-all cursor-pointer shadow-sm",
+                                                isSelected ? "border-primary ring-2 ring-primary ring-offset-1" : "hover:border-primary/50"
+                                            )}
+                                            onClick={() => {
+                                                if (isSelectMode) {
+                                                    const newSet = new Set(selectedItems);
+                                                    if (newSet.has(file.path)) newSet.delete(file.path);
+                                                    else newSet.add(file.path);
+                                                    setSelectedItems(newSet);
+                                                } else {
+                                                    window.open(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`, '_blank');
+                                                }
+                                            }}
+                                        >
+                                            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                <Button variant="destructive" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(file.path, e)}>
+                                                    <Trash2 className="w-3 h-3" />
+                                                </Button>
+                                            </div>
+                                            <Image
+                                                src={`/api/filesystem/image?path=${encodeURIComponent(file.path)}`}
+                                                alt={file.name}
+                                                fill
+                                                className="object-cover transition-transform group-hover:scale-105"
+                                            />
+                                            {isSelectMode && (
+                                                <div className="absolute top-2 left-2 z-10">
+                                                    <div className={cn(
+                                                        "w-5 h-5 rounded-sm border-2 flex items-center justify-center transition-colors",
+                                                        isSelected ? "bg-primary border-primary text-primary-foreground" : "border-white bg-black/20"
+                                                    )}>
+                                                        {isSelected && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3"><polyline points="20 6 9 17 4 12" /></svg>}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 pointer-events-none">
+                                                <p className="text-xs text-white truncate w-full">{file.name}</p>
+                                            </div>
                                         </div>
-                                        <Image
-                                            src={`/api/filesystem/image?path=${encodeURIComponent(file.path)}`}
-                                            alt={file.name}
-                                            fill
-                                            className="object-cover transition-transform group-hover:scale-105"
-                                        />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 pointer-events-none">
-                                            <p className="text-xs text-white truncate w-full">{file.name}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </ScrollArea>

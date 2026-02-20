@@ -76,31 +76,66 @@ export async function GET(req: Request) {
     }
 }
 
-const moveSchema = z.object({
-    sourcePath: z.string(),
-    destPath: z.string(),
+const actionSchema = z.object({
+    action: z.enum(["create_folder", "delete", "move", "copy"]),
+    path: z.string().optional(),
+    sourcePaths: z.array(z.string()).optional(),
+    destPath: z.string().optional(),
 });
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { sourcePath, destPath } = moveSchema.parse(body);
+        const { action, path: targetPath, sourcePaths, destPath } = actionSchema.parse(body);
 
         const basePath = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, DEFAULT_BASE_PATH);
 
-        if (sourcePath.includes("..") || destPath.includes("..")) {
-            return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+        // Security Helper
+        const resolveSafe = (p: string) => {
+            if (p.includes("..")) throw new Error("Invalid path");
+            return path.join(basePath, p);
+        };
+
+        switch (action) {
+            case "create_folder":
+                if (!targetPath) return NextResponse.json({ error: "Path required" }, { status: 400 });
+                await fs.mkdir(resolveSafe(targetPath), { recursive: true });
+                break;
+
+            case "delete":
+                if (!sourcePaths || sourcePaths.length === 0) return NextResponse.json({ error: "Paths required" }, { status: 400 });
+                for (const p of sourcePaths) {
+                    await fs.rm(resolveSafe(p), { recursive: true, force: true });
+                }
+                break;
+
+            case "move":
+                if (!sourcePaths || !destPath) return NextResponse.json({ error: "Source and dest required" }, { status: 400 });
+                for (const src of sourcePaths) {
+                    const srcBase = path.basename(src);
+                    await fs.rename(resolveSafe(src), resolveSafe(path.join(destPath, srcBase)));
+                }
+                break;
+
+            case "copy":
+                if (!sourcePaths || !destPath) return NextResponse.json({ error: "Source and dest required" }, { status: 400 });
+                for (const src of sourcePaths) {
+                    const srcBase = path.basename(src);
+                    const sourceInfo = await fs.stat(resolveSafe(src));
+                    if (sourceInfo.isDirectory()) {
+                        await fs.cp(resolveSafe(src), resolveSafe(path.join(destPath, srcBase)), { recursive: true });
+                    } else {
+                        await fs.copyFile(resolveSafe(src), resolveSafe(path.join(destPath, srcBase)));
+                    }
+                }
+                break;
         }
-
-        const fullSource = path.join(basePath, sourcePath);
-        const fullDest = path.join(basePath, destPath);
-
-        await fs.rename(fullSource, fullDest);
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        console.error("Filesystem API Error:", error);
         return NextResponse.json(
-            { error: "Failed to move file" },
+            { error: "Operation failed" },
             { status: 500 }
         );
     }
