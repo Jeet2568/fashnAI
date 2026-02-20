@@ -1,22 +1,22 @@
 "use server";
 
-import { fashnClient, RunInput } from "@/lib/fashn/client";
+import { fashnClient } from "@/lib/fashn/client";
 import { getSetting, SETTINGS_KEYS } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import fs from "fs/promises";
 import path from "path";
-import { fileToBase64 } from "@/lib/server-utils";
+import { fileToBase64, getUniqueFilename, determineResultsDir } from "@/lib/server-utils";
 
 const MAX_POLLS = 60; // 2 minutes approx
 const POLL_INTERVAL = 2000;
 
+/**
+ * Submit a Product to Model job (Supports Batch)
+ */
 export async function runMakeItMore(
-    modelPath: string | null | undefined,
-    garmentPath: string,
-    category: "tops" | "bottoms" | "one-pieces",
-    options: Partial<RunInput>,
-    backgroundPath?: string | null
+    state: any,
+    formData: FormData
 ) {
     try {
         const nasRoot = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
@@ -24,6 +24,24 @@ export async function runMakeItMore(
             if (path.isAbsolute(p)) return p;
             return path.join(nasRoot, p);
         };
+
+        const modelPath = formData.get("model") as string;
+        const garmentPath = formData.get("garment") as string;
+        const backgroundPath = formData.get("background") as string;
+        const promptsJson = formData.get("prompts") as string;
+
+        // Parse options
+        const options = {
+            category: formData.get("category") as string || "tops",
+            garment_photo_type: formData.get("garment_photo_type") as string || "auto",
+            seed: formData.get("seed") as string,
+            quality: formData.get("quality") as string,
+            aspect_ratio: formData.get("aspect_ratio") as string || "3:4",
+            num_samples: formData.get("num_samples") ? Number(formData.get("num_samples")) : 1
+        };
+
+        // Validate Paths
+        if (!garmentPath) throw new Error("Garment image is required");
 
         const absGarmentPath = resolvePath(garmentPath);
         const absBackgroundPath = backgroundPath ? resolvePath(backgroundPath) : undefined;
@@ -33,139 +51,146 @@ export async function runMakeItMore(
         const garmentImage = await fileToBase64(absGarmentPath);
         const backgroundImage = absBackgroundPath ? await fileToBase64(absBackgroundPath) : undefined;
 
-        let initialResponse;
-        let jobType = "product-to-model";
-
-        // 0. Resolve Quality Settings
-        let qualityParams = {};
-        if (options.quality === "balanced") {
-            qualityParams = { num_inference_steps: 30, guidance_scale: 2.5 };
-        } else if (options.quality === "creative") {
-            qualityParams = { num_inference_steps: 50, guidance_scale: 5.0 };
+        // 2. Parse Prompts (Batch Mode)
+        let prompts: string[] = [];
+        try {
+            prompts = JSON.parse(promptsJson || "[]");
+        } catch (e) {
+            // Fallback for legacy single prompt
+            prompts = [formData.get("prompt") as string || "high quality, realistic"];
         }
-        // Default (Precise) uses standard defaults
+        if (prompts.length === 0) prompts = ["high quality, realistic"];
 
-        if (modelPath) {
-            // Case A: TRY-ON (Model + Garment)
-            const modelImage = await fileToBase64(modelPath);
-            console.log("Starting Try-On...");
-            jobType = "try-on";
-            initialResponse = await fashnClient.runTryOn({
-                model_image: modelImage,
-                garment_image: garmentImage,
-                category,
-                ...options,
-                return_base64: false
-            });
-        } else {
-            // Case B: PRODUCT-TO-MODEL (Garment only)
-            console.log("Starting Product-to-Model...");
-            jobType = "product-to-model";
-            initialResponse = await fashnClient.runProductToModel({
-                product_image: garmentImage,
-                prompt: options.prompt,
-                aspect_ratio: options.aspect_ratio || "3:4",
-                num_images: options.num_samples || 1,
-                return_base64: false,
-                seed: options.seed ? Number(options.seed) : undefined,
-                background_reference: backgroundImage
-            });
-        }
+        console.log(`Starting Batch Generation with ${prompts.length} prompts...`);
 
-        console.log("Initial API Response:", JSON.stringify(initialResponse, null, 2));
+        // 3. Execute Requests in Parallel
+        const results = await Promise.all(prompts.map(async (prompt, index) => {
+            let initialResponse;
+            const seed = options.seed ? Number(options.seed) + index : undefined; // Shift seed for variation
 
-        let jobId = initialResponse.id;
-        let status = initialResponse.status || "starting";
-        let outputUrls: string[] = initialResponse.output || [];
-        let error = initialResponse.error;
+            if (modelPath) {
+                // Case A: TRY-ON (Model + Garment)
+                const modelImage = await fileToBase64(absModelPath!);
+                initialResponse = await fashnClient.runTryOn({
+                    model_image: modelImage,
+                    garment_image: garmentImage,
+                    category: options.category as any,
+                    cover_feet: false,
+                    adjust_hands: false,
+                    restore_background: false,
+                    restore_clothes: false,
+                    garment_photo_type: options.garment_photo_type as any,
+                    seed,
+                    // num_inference_steps removed (not in interface)
+                    guidance_scale: 2.5,
+                    nsfw_filter: true,
+                    return_base64: false
+                });
+            } else {
+                // Case B: PRODUCT-TO-MODEL (Garment only)
+                initialResponse = await fashnClient.runProductToModel({
+                    product_image: garmentImage,
+                    prompt: prompt,
+                    aspect_ratio: options.aspect_ratio as any,
+                    num_images: 1, // Always 1 per slot
+                    seed,
+                    background_reference: backgroundImage,
+                    // adjust_hands, restore_clothes, restore_background, garment_photo_type are NOT supported in Product To Model
+                });
+            }
+            if (initialResponse.error) {
+                throw new Error(initialResponse.error || "API Error");
+            }
+            return { id: initialResponse.id, prompt };
+        }));
 
-        // 3. Poll for Completion
-        // If we don't have a final status yet, poll.
-        if (status !== "completed" && status !== "failed" && status !== "canceled") {
+        // 4. Poll & Save
+        const refPath = modelPath || garmentPath;
+        const refDir = path.dirname(refPath); // Relative path from DB
+
+        // Resolve Save Path
+        // If refDir is inside "RAW", go up and to "Results"
+        // Since we are running on server, we need ABSOLUTE path to save.
+        // We can use absGarmentPath or absModelPath to find the directory.
+
+        const sourceFileAbs = absModelPath || absGarmentPath;
+        const resultsDir = determineResultsDir(sourceFileAbs);
+
+        await fs.mkdir(resultsDir, { recursive: true });
+
+        const allSavedPaths: string[] = [];
+
+        const completedJobs: { job: any, outputUrls: string[] }[] = [];
+
+        // 4. Poll (Parallel)
+        await Promise.all(results.map(async (job) => {
+            let status = "starting";
+            let outputUrls: string[] = [];
+
+            // Poll
             for (let i = 0; i < MAX_POLLS; i++) {
                 await new Promise(r => setTimeout(r, POLL_INTERVAL));
                 try {
-                    const poll = await fashnClient.getStatus(jobId);
-                    console.log(`Poll ${i + 1}/${MAX_POLLS}:`, poll.status, poll.error ? `Error: ${poll.error}` : "");
+                    const poll = await fashnClient.getStatus(job.id);
                     status = poll.status;
                     if (status === "completed") {
                         outputUrls = poll.output || [];
-                        console.log("Job Completed. Output:", outputUrls);
+                        completedJobs.push({ job, outputUrls });
                         break;
                     }
-                    if (status === "failed" || status === "canceled") {
-                        error = poll.error || "Job failed or canceled";
-                        console.error("Job Failed:", error);
-                        break;
-                    }
-                } catch (e: any) {
-                    console.error("Polling error:", e.message);
+                    if (status === "failed" || status === "canceled") throw new Error(poll.error || "Failed");
+                } catch (e) {
+                    console.error(`Polling error job ${job.id}:`, e);
                 }
             }
-        } else if (status === "completed") {
-            outputUrls = initialResponse.output || [];
-        }
-
-        if (status !== "completed" || !outputUrls.length) {
-            console.error("Final Error State:", { status, outputUrls, error });
-            throw new Error(error || "Generation timed out or failed");
-        }
-
-        // 4. Download and Save Result
-        // 4. Download and Save Result
-        // Determine Save Path
-        const refPath = modelPath || garmentPath;
-        const modelDir = path.dirname(refPath);
-        let resultsDir = "";
-        if (modelDir.endsWith("RAW") || modelDir.endsWith("RAW\\") || modelDir.endsWith("RAW/")) {
-            resultsDir = path.join(path.dirname(modelDir), "Results");
-        } else {
-            resultsDir = path.join(modelDir, "Results");
-        }
-
-        // Ensure directory exists
-        try {
-            await fs.mkdir(resultsDir, { recursive: true });
-        } catch (e) {
-            // If creation fails, fallback to model dir
-            resultsDir = modelDir;
-        }
-
-        const timestamp = new Date().getTime();
-        const savedPaths: string[] = [];
-
-        await Promise.all(outputUrls.map(async (url, index) => {
-            const filename = `${path.basename(refPath, path.extname(refPath))}_tryon_${timestamp}_${index + 1}.jpg`;
-            const outputPath = path.join(resultsDir, filename);
-
-            const imageRes = await fetch(url);
-            if (!imageRes.ok) throw new Error("Failed to download result image");
-            const arrayBuffer = await imageRes.arrayBuffer();
-            await fs.writeFile(outputPath, Buffer.from(arrayBuffer));
-            savedPaths.push(outputPath);
         }));
 
-        // 5. Log Job to DB
-        const user = await getCurrentUser();
-        await prisma.job.create({
-            data: {
-                userId: user.id,
-                status: "COMPLETED",
-                inputParams: JSON.stringify({
-                    type: "try-on",
-                    category,
-                    model: modelPath || "product-to-model",
-                    garment: garmentPath,
-                    ...options
-                }),
-                outputPaths: JSON.stringify(savedPaths),
-            }
-        });
+        // 5. Save (Sequential to ensure unique naming)
+        for (const { job, outputUrls } of completedJobs) {
+            if (outputUrls.length > 0) {
+                for (const url of outputUrls) {
+                    try {
+                        const buffer = await downloadImage(url);
+                        // Naming: OriginalName[_N].ext in Results folder
+                        const baseName = path.basename(sourceFileAbs, path.extname(sourceFileAbs));
+                        const savePath = await getUniqueFilename(resultsDir, baseName, ".png");
 
-        return { success: true, path: savedPaths[0], paths: savedPaths };
+                        await fs.writeFile(savePath, Buffer.from(buffer));
+                        allSavedPaths.push(savePath);
+                    } catch (e) {
+                        console.error("Failed to save image", e);
+                    }
+                }
+            }
+        }
+
+        // 6. Log Global Job (Optional, just logging the batch)
+        try {
+            const user = await getCurrentUser();
+            if (user) {
+                await prisma.job.create({
+                    data: {
+                        userId: user.id,
+                        status: "COMPLETED",
+                        inputParams: JSON.stringify({ prompts, options }),
+                        outputPaths: JSON.stringify(allSavedPaths),
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn("Failed to log job to DB", e);
+        }
+
+        return { success: true, paths: allSavedPaths };
 
     } catch (error: any) {
-        console.error("Try-On Error:", error);
+        console.error("Batch Job Failed:", error);
         return { success: false, error: error.message };
     }
+}
+
+async function downloadImage(url: string): Promise<ArrayBuffer> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to download image: ${res.statusText}`);
+    return res.arrayBuffer();
 }

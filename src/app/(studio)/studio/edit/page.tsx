@@ -190,21 +190,21 @@ function EditorContent() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#FDFBF7]">
+        <div className="flex flex-col h-full bg-background">
             {/* Top Navigation Tabs */}
             <div className="flex items-center justify-center pt-6 pb-2">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-                    <TabsList className="bg-[#EBE5D5]/50 border border-[#EBE5D5]">
-                        <TabsTrigger value="edit" className="data-[state=active]:bg-[#A79776] data-[state=active]:text-white gap-2">
+                    <TabsList className="bg-muted/50 border border-border">
+                        <TabsTrigger value="edit" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
                             <Wand2 className="h-4 w-4" /> Edit
                         </TabsTrigger>
-                        <TabsTrigger value="faceswap" className="data-[state=active]:bg-[#A79776] data-[state=active]:text-white gap-2">
+                        <TabsTrigger value="faceswap" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
                             <RefreshCw className="h-4 w-4" /> Face Swap
                         </TabsTrigger>
-                        <TabsTrigger value="removebg" className="data-[state=active]:bg-[#A79776] data-[state=active]:text-white gap-2">
+                        <TabsTrigger value="removebg" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
                             <Scissors className="h-4 w-4" /> Remove BG
                         </TabsTrigger>
-                        <TabsTrigger value="reframe" className="data-[state=active]:bg-[#A79776] data-[state=active]:text-white gap-2">
+                        <TabsTrigger value="reframe" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
                             <Crop className="h-4 w-4" /> Reframe
                         </TabsTrigger>
                     </TabsList>
@@ -216,7 +216,7 @@ function EditorContent() {
                 <div className="relative">
                     <Input
                         placeholder="What would you like to change? (e.g. 'Make the shirt red')"
-                        className="h-12 pl-4 pr-32 text-base shadow-sm border-zinc-200 bg-white"
+                        className="h-12 pl-4 pr-32 text-base shadow-sm border-input bg-background"
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                     />
@@ -229,15 +229,15 @@ function EditorContent() {
                     <Button
                         variant={activeTool === "brush" ? "secondary" : "outline"}
                         size="sm"
-                        className={cn("gap-2", activeTool === "brush" ? "bg-[#EBE5D5] text-black" : "bg-white border-[#EBE5D5] text-zinc-600")}
+                        className={cn("gap-2", activeTool === "brush" ? "bg-muted text-foreground" : "bg-background border-border text-muted-foreground")}
                         onClick={() => setActiveTool("brush")}
                     >
                         <Brush className="h-4 w-4" /> Brush
                     </Button>
 
                     {activeTool === "brush" && (
-                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-[#EBE5D5]">
-                            <span className="text-xs text-zinc-500 font-medium w-8">{brushSize}px</span>
+                        <div className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md border border-border">
+                            <span className="text-xs text-muted-foreground font-medium w-8">{brushSize}px</span>
                             <Slider
                                 value={[brushSize]}
                                 onValueChange={(v) => setBrushSize(v[0])}
@@ -251,7 +251,7 @@ function EditorContent() {
                     <Button
                         variant={activeTool === "eraser" ? "secondary" : "outline"}
                         size="icon"
-                        className={cn("h-9 w-9", activeTool === "eraser" ? "bg-[#EBE5D5]" : "bg-white border-[#EBE5D5] text-zinc-600")}
+                        className={cn("h-9 w-9", activeTool === "eraser" ? "bg-muted" : "bg-background border-border text-muted-foreground")}
                         onClick={() => setActiveTool("eraser")}
                         title="Eraser"
                     >
@@ -270,7 +270,7 @@ function EditorContent() {
 
                 <div className="flex items-center gap-2">
                     <Select defaultValue="1k">
-                        <SelectTrigger className="h-9 w-[80px] bg-white border-[#EBE5D5]">
+                        <SelectTrigger className="h-9 w-[80px] bg-background border-border">
                             <SelectValue placeholder="Res" />
                         </SelectTrigger>
                         <SelectContent>
@@ -280,7 +280,7 @@ function EditorContent() {
                     </Select>
 
                     <Button
-                        className="bg-[#EBE5D5] hover:bg-[#D4CBB6] text-black border border-[#D4CBB6]"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={handleGenerate}
                         disabled={isProcessing || !imageLoaded}
                     >
@@ -303,7 +303,7 @@ function EditorContent() {
             <div className="flex-1 p-6 flex items-center justify-center min-h-0">
                 <div
                     ref={containerRef}
-                    className="relative w-full max-w-4xl h-full max-h-[600px] rounded-2xl bg-white shadow-sm border border-[#EBE5D5] overflow-hidden flex items-center justify-center"
+                    className="relative w-full max-w-4xl h-full max-h-[600px] rounded-2xl bg-background shadow-sm border border-border overflow-hidden flex items-center justify-center"
                 >
                     {!imagePath ? (
                         <div className="text-center space-y-4">
@@ -311,7 +311,7 @@ function EditorContent() {
                                 <Button
                                     size="lg"
                                     variant="outline"
-                                    className="bg-white hover:bg-zinc-50 border-dashed border-2 h-14"
+                                    className="bg-background hover:bg-accent border-dashed border-2 h-14"
                                 >
                                     <Upload className="h-5 w-5 mr-2 text-muted-foreground" />
                                     Paste / Drop image here
@@ -321,7 +321,7 @@ function EditorContent() {
 
                                 <Dialog open={showGalleryDialog} onOpenChange={setShowGalleryDialog}>
                                     <DialogTrigger asChild>
-                                        <Button variant="secondary" className="bg-[#F5F2EA] hover:bg-[#EBE5D5] text-[#A79776]">
+                                        <Button variant="secondary" className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
                                             <ImageIcon className="h-5 w-5 mr-2" />
                                             Choose from Gallery
                                         </Button>
@@ -330,12 +330,12 @@ function EditorContent() {
                                         <div className="p-4 border-b">
                                             <h2 className="text-lg font-bold">Select Image</h2>
                                         </div>
-                                        <div className="flex-1 overflow-hidden p-4 bg-zinc-50">
+                                        <div className="flex-1 overflow-hidden p-4 bg-muted/10">
                                             <FileExplorer
                                                 onSelectFile={handleGallerySelect}
                                                 onSelectFolder={() => { }} // Dummy handler
                                                 defaultView="grid"
-                                                className="h-full bg-white border"
+                                                className="h-full bg-background border"
                                             />
                                         </div>
                                     </DialogContent>

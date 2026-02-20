@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     PanelRightClose,
     PanelRightOpen,
@@ -43,6 +43,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { runMakeItMore } from "./actions";
 import { useRouter } from "next/navigation";
+import { ModelSelector } from "@/components/model-selector";
 
 
 export default function ProductToModelPage() {
@@ -60,73 +61,101 @@ export default function ProductToModelPage() {
     // Local
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isThinking, setIsThinking] = useState(false);
+    const [categories, setCategories] = useState<{ label: string, value: string }[]>([]);
 
-    // ... inside component ...
+    useEffect(() => {
+        fetch("/api/admin/resource-categories")
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data) && data.length > 0) {
+                    setCategories(data);
+                    // If current category is not in list, select first available?
+                    // Or keep 'tops' as default fallback if list is empty?
+                }
+            })
+            .catch(err => console.error("Failed to load categories", err));
+    }, []);
+
 
     const router = useRouter();
 
     // Real Generation
     const handleRun = async () => {
-        // Validation: Need at least a garment. Model is now optional (Product-to-Model fallback).
+        // Validation: Need at least a garment. 
         if (selectedGarments.length === 0) {
             toast.error("Please select at least one Garment.");
             return;
         }
 
         setIsThinking(true);
-        if (selectedModel) {
-            toast.info("Sending Try-On job...");
-        } else {
-            toast.info("Generating model from product...");
-        }
+        toast.info(`Starting Batch Generation for ${selectedGarments.length} items...`);
 
         try {
-            // Default category map or inference
-            const categoryMap: Record<string, "tops" | "bottoms" | "one-pieces"> = {
-                "top": "tops",
-                "bottom": "bottoms",
-                "dress": "one-pieces",
-                "outerwear": "tops" // approx
-            };
+            // Just pass the first garment as primary "garment" for validation (legacy), 
+            // BUT backend actions.ts will rely on "prompts" logic? 
+            // Wait, backend actions.ts uses `garment` from formData.
+            // If we have multiple garments, we need multiple API calls initiated from Frontend?
+            // OR we update Backend to accept `garments[]`?
+            // User requirement: "product image storing example... Product Raw image is selected... same for the other one parallelly"
 
-            // Just take the first garment for now (Multi-garment is advanced)
-            const garment = selectedGarments[0];
-            // Infer category from path or metadata if available, else default to 'tops'
-            // For now, hardcode or guessing 'tops' if unknown, but better to let user pick?
-            // User 'category' from store is already available!
+            // IMPLEMENTATION CHANGE:
+            // Since `actions.ts` currently handles "Batch Prompts" but assumes *Single Garment* (logic I wrote in step 3212: `const garmentPath = formData.get("garment")`),
+            // I need to support *Multiple Garments*.
 
-            const result = await runMakeItMore(
-                selectedModel?.path,
-                garment.path,
-                category as "tops" | "bottoms" | "one-pieces",
-                {
-                    prompt,
-                    num_samples: numImages,
-                    nsfw_filter: true,
-                    cover_feet: false,
-                    adjust_hands: false,
-                    restore_background: true,
-                    restore_clothes: true,
-                    garment_photo_type: garmentPhotoType,
-                    quality: quality, // Pass quality to action
-                    aspect_ratio: aspectRatio // Pass aspect ratio
-                },
-                selectedBackground?.path
-            );
+            // To avoid massive Backend rewrite right now, I will Loop on Frontend and call `runMakeItMore` for EACH garment parallelly?
+            // OR I construct a complex JSON payload.
 
-            if (result.success && result.path) {
-                toast.success("Generation Complete!");
-                // Open Result in Viewer or Navigate?
-                // Let's offer to view it
-                toast.dismiss();
-                toast("View Result?", {
-                    action: {
-                        label: "Open Editor",
-                        onClick: () => router.push(`/studio/edit?image=${encodeURIComponent(result.path!)}`)
-                    }
-                });
+            // Let's Loop on Frontend. It matches "Batch UI" perfectly.
+            // But we need to construct the PROMPT for each garment.
+            // The UI is a Grid: Garment[i] + Prompt[i].
+            // So for each item i, we call API.
+
+            const statePrompts = useTryOnStore.getState().prompts || [];
+
+            const promises = selectedGarments.map(async (garment, index) => {
+                const fd = new FormData();
+                fd.append("garment", garment.path);
+                if (selectedModel) fd.append("model", selectedModel.path);
+                if (selectedBackground) fd.append("background", selectedBackground.path);
+
+                // Get specific prompt for this slot
+                const slotPrompt = statePrompts[index] || prompt;
+                // We pass it as a single-item array so actions.ts treats it as a batch of 1
+                fd.append("prompts", JSON.stringify([slotPrompt]));
+
+                fd.append("category", category);
+                fd.append("garment_photo_type", garmentPhotoType);
+                fd.append("nsfw_filter", "true");
+                fd.append("cover_feet", "false");
+                fd.append("adjust_hands", "false");
+                fd.append("restore_background", "true");
+                fd.append("restore_clothes", "true");
+                fd.append("quality", quality);
+                fd.append("aspect_ratio", aspectRatio);
+                fd.append("num_samples", String(numImages));
+
+                return runMakeItMore(null, fd);
+            });
+
+            const results = await Promise.all(promises);
+
+            const successes = results.filter(r => r.success);
+            if (successes.length > 0) {
+                toast.success(`Batch Complete! ${successes.length}/${selectedGarments.length} generated.`);
+
+                // If single result, offer to view
+                if (successes.length === 1 && successes[0].paths && successes[0].paths.length > 0) {
+                    const firstPath = successes[0].paths[0];
+                    toast("View Result?", {
+                        action: {
+                            label: "Open Editor",
+                            onClick: () => router.push(`/studio/edit?image=${encodeURIComponent(firstPath)}`)
+                        }
+                    });
+                }
             } else {
-                toast.error(`Generation Failed: ${result.error}`);
+                const firstError = results.find(r => !r.success)?.error;
+                toast.error(`Generation Failed: ${firstError || "Unknown error"}`);
             }
 
         } catch (error) {
@@ -168,8 +197,6 @@ export default function ProductToModelPage() {
                         </div>
                     ) : null}
 
-
-
                     <Button
                         size="sm"
                         className={cn(
@@ -184,16 +211,26 @@ export default function ProductToModelPage() {
                     </Button>
                 </div>
             </header>
-
-            {/* Row 2: Tabs & Dropdowns Toolbar */}
             <div className="px-6 py-2 flex items-center justify-between border-b bg-white/50 backdrop-blur-sm">
                 <div className="flex items-center gap-4 overflow-x-auto pb-1 no-scrollbar">
                     {/* Category Tabs */}
                     <Tabs value={category} onValueChange={(v: any) => setParam("category", v)} className="h-8">
                         <TabsList className="h-8 bg-zinc-100/80 p-0.5 rounded-lg border border-zinc-200/50">
-                            <TabsTrigger value="tops" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Tops</TabsTrigger>
-                            <TabsTrigger value="bottoms" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Bottoms</TabsTrigger>
-                            <TabsTrigger value="one-pieces" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">One-Pieces</TabsTrigger>
+                            {categories.length > 0 ? categories.map(cat => (
+                                <TabsTrigger
+                                    key={cat.value}
+                                    value={cat.value}
+                                    className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                                >
+                                    {cat.label}
+                                </TabsTrigger>
+                            )) : (
+                                <>
+                                    <TabsTrigger value="tops" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Tops</TabsTrigger>
+                                    <TabsTrigger value="bottoms" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Bottoms</TabsTrigger>
+                                    <TabsTrigger value="one-pieces" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">One-Pieces</TabsTrigger>
+                                </>
+                            )}
                         </TabsList>
                     </Tabs>
 
@@ -512,11 +549,20 @@ function AssetCard({
                             {optional ? "Optional background" : `Select ${title.toLowerCase()}`}
                         </p>
                     </div>
-                    <FileExplorerDialog onSelect={onSelect} multiSelect={multiSelect}>
-                        <Button variant="outline" className="rounded-full px-6 hover:bg-white hover:shadow-md transition-all">
-                            <Plus className="h-3.5 w-3.5 mr-2" /> Select
-                        </Button>
-                    </FileExplorerDialog>
+
+                    <div className="flex flex-col gap-2 w-full">
+                        <FileExplorerDialog onSelect={onSelect} multiSelect={multiSelect}>
+                            <Button variant="outline" className="rounded-full px-6 hover:bg-white hover:shadow-md transition-all w-full">
+                                <Plus className="h-3.5 w-3.5 mr-2" /> Select File
+                            </Button>
+                        </FileExplorerDialog>
+
+                        {title === "Model" && (
+                            <ModelSelector
+                                onSelect={(url) => onSelect({ name: "Saved Model", path: url, isDirectory: false })}
+                            />
+                        )}
+                    </div>
                 </div>
             )}
         </Card>

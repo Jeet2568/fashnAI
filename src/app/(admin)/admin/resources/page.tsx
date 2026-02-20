@@ -1,25 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -37,8 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Trash2, Edit } from "lucide-react";
+import { PlusCircle, Search, Loader2, ScanFace } from "lucide-react";
 import { toast } from "sonner";
+import { ResourceCard } from "@/components/admin/ResourceCard";
 
 interface Resource {
   id: string;
@@ -49,32 +35,31 @@ interface Resource {
   createdAt: string;
 }
 
-const RESOURCE_TYPES = [
-  "pose",
-  "camera_angle",
-  "background",
-  "model",
-  "accessory",
-];
-
 export default function ResourcesPage() {
+  const router = useRouter();
   const [resources, setResources] = useState<Resource[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    type: "pose",
-    name: "",
-    prompt: "",
-    thumbnail: "",
-  });
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   useEffect(() => {
     fetchResources();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("/api/admin/resource-categories");
+      if (res.ok) {
+        const data = await res.json();
+        // Extract values from category objects
+        setCategories(data.map((c: any) => c.value));
+      }
+    } catch (e) {
+      console.error("Failed to load categories");
+    }
+  };
 
   const fetchResources = async () => {
     setLoading(true);
@@ -87,33 +72,6 @@ export default function ResourcesPage() {
       toast.error("Failed to load resources");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.name || !formData.prompt) {
-      toast.error("Name and Prompt are required");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const res = await fetch("/api/resources", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) throw new Error("Failed to create");
-
-      toast.success("Resource created successfully");
-      setIsDialogOpen(false);
-      setFormData({ type: "pose", name: "", prompt: "", thumbnail: "" });
-      fetchResources();
-    } catch (error) {
-      toast.error("Failed to save resource");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -132,148 +90,95 @@ export default function ResourcesPage() {
     }
   };
 
-  const filteredResources = resources.filter(r =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredResources = resources.filter(r => {
+    const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.type.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || r.type === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 flex flex-col h-full bg-background">
+      {/* Header & Controls */}
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Resources</h1>
           <p className="text-muted-foreground">
             Manage prompts and presets for the Studio.
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <PlusCircle className="h-4 w-4" />
-              Add Resource
+
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
+            {/* Category Filter */}
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-[180px] bg-background">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="model" className="font-semibold text-indigo-600">Models</SelectItem>
+                {categories.map(c => (
+                  <SelectItem key={c} value={c} className="capitalize">
+                    {c.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Search */}
+            <Button
+              variant={selectedCategory === "model" ? "default" : "outline"}
+              className="px-3 gap-2"
+              onClick={() => setSelectedCategory(selectedCategory === "model" ? "all" : "model")}
+            >
+              <ScanFace className="h-4 w-4" />
+              Models
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Resource</DialogTitle>
-              <DialogDescription>
-                Create a reusable prompt component for the Studio.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="type">Type</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(v) => setFormData({ ...formData, type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RESOURCE_TYPES.map(t => (
-                      <SelectItem key={t} value={t} className="capitalize">{t.replace("_", " ")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g. Studio Lighting, Side Profile"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="prompt">Prompt Fragment</Label>
-                <Textarea
-                  id="prompt"
-                  placeholder="The actual text that will be appended to the generation prompt..."
-                  className="min-h-[100px]"
-                  value={formData.prompt}
-                  onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="thumbnail">Thumbnail URL (Optional)</Label>
-                <Input
-                  id="thumbnail"
-                  placeholder="https://..."
-                  value={formData.thumbnail}
-                  onChange={(e) => setFormData({ ...formData, thumbnail: e.target.value })}
-                />
-              </div>
+
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search resources..."
+                className="pl-9 bg-background"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Create Resource"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+
+          <Button
+            className="gap-2 shrink-0"
+            onClick={() => router.push("/admin/resources/add")}
+          >
+            <PlusCircle className="h-4 w-4" />
+            Add New Resource
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Prompt</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredResources.map((resource) => (
-                <TableRow key={resource.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {resource.thumbnail && (
-                        <img src={resource.thumbnail} alt={resource.name} className="h-8 w-8 rounded object-cover" />
-                      )}
-                      <span>{resource.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="capitalize">
-                      {resource.type.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-md truncate text-muted-foreground">
-                    {resource.prompt}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(resource.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(resource.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredResources.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No resources found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
+      {/* Main Content: Card List */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="h-40 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredResources.length > 0 ? (
+          <div className="space-y-4 pb-10">
+            {filteredResources.map((resource) => (
+              <ResourceCard
+                key={resource.id}
+                resource={resource}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-20 text-muted-foreground border-2 border-dashed rounded-lg">
+            No resources found matching your criteria.
+          </div>
+        )}
+      </div>
     </div >
   );
 }

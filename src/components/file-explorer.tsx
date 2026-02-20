@@ -3,15 +3,17 @@
 import { useState, useEffect } from "react";
 import { Folder, File, ChevronLeft, Loader2, Image as ImageIcon, LayoutList, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useStore } from "@/lib/store";
 
 interface FileEntry {
     name: string;
     isDirectory: boolean;
     path: string;
 }
+
+import { FolderTree } from "@/components/dashboard/folder-tree";
 
 interface FileExplorerProps {
     onSelectFolder: (path: string) => void;
@@ -21,9 +23,10 @@ interface FileExplorerProps {
     initialPath?: string;
     className?: string;
     defaultView?: "list" | "grid";
+    variant?: "default" | "split"; // Added split variant
 }
 
-export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allowMultiSelect, initialPath = "", className, defaultView = "list" }: FileExplorerProps) {
+export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allowMultiSelect, initialPath = "", className, defaultView = "list", variant = "default" }: FileExplorerProps) {
     const [currentPath, setCurrentPath] = useState(initialPath);
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [loading, setLoading] = useState(false);
@@ -31,6 +34,12 @@ export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allo
 
     // Multi-select state
     const [selectedFiles, setSelectedFiles] = useState<FileEntry[]>([]);
+
+    // Global Store Sync
+    const { setSelectedFolder } = useStore();
+    useEffect(() => {
+        setSelectedFolder(currentPath);
+    }, [currentPath, setSelectedFolder]);
 
     const fetchFiles = async (path: string) => {
         setLoading(true);
@@ -72,9 +81,9 @@ export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allo
         });
     };
 
-    return (
-        <div className={cn("flex h-[500px] flex-col rounded-md border bg-card text-card-foreground", className)}>
-            <div className="flex items-center gap-2 border-b p-2 bg-muted/50">
+    const MainContent = (
+        <div className={cn("flex flex-col rounded-md border bg-card text-card-foreground overflow-hidden", variant === "default" && "h-[500px]", className)}>
+            <div className="flex items-center gap-2 border-b p-2 bg-muted/50 shrink-0">
                 <Button variant="ghost" size="icon" onClick={handleUp} disabled={!currentPath}>
                     <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -111,7 +120,7 @@ export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allo
                 )}
             </div>
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-y-auto min-h-0 bg-background/50">
                 <div className="p-2 space-y-1">
                     {loading ? (
                         <div className="flex justify-center p-4">
@@ -158,7 +167,7 @@ export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allo
                         })
                     ) : (
                         // GRID VIEW
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-2">
                             {files.map((file) => {
                                 const isSelected = selectedFiles.some(f => f.path === file.path);
                                 return (
@@ -208,7 +217,34 @@ export function FileExplorer({ onSelectFolder, onSelectFile, onSelectFiles, allo
                         </div>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
         </div>
     );
+
+    if (variant === "split") {
+        return (
+            <div className={cn("flex h-full gap-4", className)}>
+                {/* Left: Folder Tree */}
+                <div className="w-1/4 min-w-[250px] border rounded-lg bg-card overflow-hidden flex flex-col">
+                    <div className="p-3 border-b bg-muted/30 font-semibold text-sm">
+                        Folder Structure
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2">
+                        <FolderTree
+                            path=""
+                            onSelect={(path) => handleNavigate(path)}
+                            selectedPath={currentPath}
+                        />
+                    </div>
+                </div>
+
+                {/* Right: Main Content (Grid/List) */}
+                <div className="flex-1 min-w-0 flex flex-col">
+                    {MainContent}
+                </div>
+            </div>
+        );
+    }
+
+    return MainContent;
 }

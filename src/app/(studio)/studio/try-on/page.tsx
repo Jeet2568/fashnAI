@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +9,7 @@ import { runTryOnAction } from "./actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FileExplorer } from "@/components/file-explorer";
+import { ModelSelector } from "@/components/model-selector";
 import {
     Upload,
     Image as ImageIcon,
@@ -37,6 +38,19 @@ export default function TryOnPage() {
     const [aspectRatio, setAspectRatio] = useState("3:4");
     const [numImages, setNumImages] = useState("1");
     const [resolution, setResolution] = useState("1k");
+    const [category, setCategory] = useState("tops");
+    const [categories, setCategories] = useState<{ label: string, value: string }[]>([]);
+
+    useEffect(() => {
+        fetch("/api/admin/resource-categories")
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data) && data.length > 0) {
+                    setCategories(data);
+                }
+            })
+            .catch(err => console.error("Failed to load categories", err));
+    }, []);
 
     // Upload States
     const [productImage, setProductImage] = useState<string | null>(null);
@@ -116,7 +130,7 @@ export default function TryOnPage() {
         const result = await runTryOnAction(
             modelPath,
             garmentPath,
-            "tops", // Default category for now
+            category,
             {
                 prompt,
                 aspect_ratio: aspectRatio as any,
@@ -144,13 +158,17 @@ export default function TryOnPage() {
         image,
         onClear,
         onGalleryClick,
-        placeholderIcon: Icon = ImageIcon
+        placeholderIcon: Icon = ImageIcon,
+        showModelSelector = false,
+        onModelSelect
     }: {
         label: string,
         image: string | null,
         onClear: () => void,
         onGalleryClick: () => void,
-        placeholderIcon?: any
+        placeholderIcon?: any,
+        showModelSelector?: boolean,
+        onModelSelect?: (url: string) => void
     }) => (
         <div className="flex-1 flex flex-col h-full min-h-[400px]">
             {image ? (
@@ -167,8 +185,6 @@ export default function TryOnPage() {
                 </div>
             ) : (
                 <div className="flex-1 border-2 border-dashed rounded-xl flex flex-col items-center justify-center bg-muted/5 gap-4 hover:bg-muted/10 transition-colors">
-                    {/* Background Grid Pattern Suggestion */}
-                    {/* We can use CSS or SVG background here for the 'faint clothes' look from screenshot */}
                     <div className="absolute inset-0 z-[-1] opacity-[0.03]"
                         style={{ backgroundImage: "radial-gradient(#000 1px, transparent 1px)", backgroundSize: "20px 20px" }}
                     />
@@ -182,19 +198,18 @@ export default function TryOnPage() {
                             <Button variant="outline" size="sm" className="gap-2">
                                 <Copy className="h-4 w-4" /> Paste
                             </Button>
-                            <Button
-                                variant="outline"
-                                className="w-full gap-2"
-                                onClick={handleRun}
-                            >
-                                <Sparkles className="h-4 w-4" />
-                                Run Try-On
-                            </Button>
+                            {/* Run Try-On Button was duplicate here? Removing for cleaner UI as main button is in header */}
                         </div>
-                        <div className="text-xs text-muted-foreground font-medium">OR</div>
-                        <Button variant="secondary" size="sm" className="gap-2" onClick={onGalleryClick}>
-                            <ImageIcon className="h-4 w-4" /> Choose from Gallery
-                        </Button>
+
+                        <div className="flex flex-col gap-2 w-full max-w-[200px]">
+                            <Button variant="secondary" size="sm" className="gap-2 w-full" onClick={onGalleryClick}>
+                                <ImageIcon className="h-4 w-4" /> Choose from Gallery
+                            </Button>
+
+                            {showModelSelector && onModelSelect && (
+                                <ModelSelector onSelect={onModelSelect} />
+                            )}
+                        </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-4">/ drop image here</p>
                 </div>
@@ -215,6 +230,26 @@ export default function TryOnPage() {
                     />
                     <div className="flex items-center gap-2 border-l pl-2">
 
+                        {/* Category Select */}
+                        <Select value={category} onValueChange={setCategory}>
+                            <SelectTrigger className="h-9 px-3 rounded-full border bg-white hover:bg-zinc-50 transition-colors text-xs font-medium focus:ring-0 shadow-sm min-w-[90px]">
+                                <span className="flex items-center gap-2">
+                                    <Shirt className="h-3.5 w-3.5 text-zinc-500" />
+                                    <SelectValue placeholder="Category" />
+                                </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {categories.length > 0 ? categories.map(cat => (
+                                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                                )) : (
+                                    <>
+                                        <SelectItem value="tops">Tops</SelectItem>
+                                        <SelectItem value="bottoms">Bottoms</SelectItem>
+                                        <SelectItem value="one-pieces">One-Pieces</SelectItem>
+                                    </>
+                                )}
+                            </SelectContent>
+                        </Select>
 
                         <Select value={resolution} onValueChange={setResolution}>
                             <SelectTrigger className="h-9 px-3 rounded-full border bg-white hover:bg-zinc-50 transition-colors text-xs font-medium focus:ring-0 shadow-sm min-w-[70px]">
@@ -273,6 +308,8 @@ export default function TryOnPage() {
                             image={faceImage}
                             onClear={() => setFaceImage(null)}
                             onGalleryClick={() => openGallery("face")}
+                            showModelSelector={true}
+                            onModelSelect={setFaceImage}
                         />
                     </CardContent>
                 </Card>

@@ -14,12 +14,21 @@ import {
     Camera,
     ArrowLeftRight,
     User,
+    LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { logout } from "@/app/actions";
+import { useRouter } from "next/navigation";
 
 export function StudioSidebar() {
     const pathname = usePathname();
+    const router = useRouter();
     const [isStudioOpen, setIsStudioOpen] = useState(true);
+
+    const handleLogout = async () => {
+        await logout();
+        router.push("/");
+    };
 
     const checkActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
@@ -31,7 +40,7 @@ export function StudioSidebar() {
                         <Shirt className="h-5 w-5 text-white" />
                     </div>
                     <h1 className="text-xl font-bold">
-                        FASHN<span className="font-light">AI</span>
+                        Studio<span className="font-light">AI</span>
                     </h1>
                 </Link>
 
@@ -159,6 +168,19 @@ export function StudioSidebar() {
                     </div>
 
                 </div>
+            </div>
+
+            {/* Logout Footer */}
+            <div className="px-3 pb-2">
+                <button
+                    onClick={handleLogout}
+                    className="text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition"
+                >
+                    <div className="flex items-center flex-1">
+                        <LogOut className="h-4 w-4 mr-3" />
+                        Log Out
+                    </div>
+                </button>
             </div>
         </div>
     );

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { fashnClient } from "@/lib/fashn/client";
-import { fileToBase64 } from "@/lib/server-utils";
+import { fileToBase64, getUniqueFilename, determineResultsDir } from "@/lib/server-utils";
 
 
 
@@ -26,23 +26,10 @@ export async function POST(req: Request) {
         }
 
         // 2. Determine Output Path
-        const dir = path.dirname(imagePath);
         const filename = path.basename(imagePath, path.extname(imagePath));
+        const resultsDir = determineResultsDir(imagePath);
 
-        let resultsDir = "";
-        if (dir.endsWith("RAW") || dir.endsWith("RAW\\") || dir.endsWith("RAW/")) {
-            resultsDir = path.join(path.dirname(dir), "Results");
-        } else if (dir.endsWith("Results") || dir.endsWith("Results\\") || dir.endsWith("Results/")) {
-            resultsDir = dir;
-        } else {
-            resultsDir = path.join(dir, "Edited");
-        }
-
-        await fs.mkdir(resultsDir, { recursive: true });
-
-        const timestamp = new Date().getTime();
-        const newFilename = `${filename}_edit_${timestamp}.png`;
-        const outputPath = path.join(resultsDir, newFilename);
+        const outputPath = await getUniqueFilename(resultsDir, filename, ".png");
 
         // 3. Call Fashn.ai API
         console.log("Starting Edit...");
@@ -113,7 +100,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
             success: true,
             path: outputPath,
-            filename: newFilename
+            filename: path.basename(outputPath)
         });
 
     } catch (error: any) {

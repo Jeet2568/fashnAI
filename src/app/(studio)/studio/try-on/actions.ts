@@ -5,13 +5,13 @@ import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import fs from "fs/promises";
 import path from "path";
-import { fileToBase64 } from "@/lib/server-utils";
+import { fileToBase64, determineResultsDir, getUniqueFilename } from "@/lib/server-utils";
 import { getSetting, SETTINGS_KEYS } from "@/lib/settings";
 
 export async function runTryOnAction(
     modelPath: string,
     garmentPath: string,
-    category: "tops" | "bottoms" | "one-pieces",
+    category: string,
     options: Partial<RunInput>
 ) {
     try {
@@ -63,12 +63,10 @@ export async function runTryOnAction(
         if (!outputUrls.length) throw new Error("No output generated");
 
         // Save Result
-        const resultsDir = path.join(path.dirname(absModelPath), "Results");
-        await fs.mkdir(resultsDir, { recursive: true });
+        const resultsDir = determineResultsDir(absModelPath);
 
-        const timestamp = Date.now();
-        const filename = `tryon_${timestamp}.jpg`;
-        const outputPath = path.join(resultsDir, filename);
+        const baseName = path.basename(absModelPath, path.extname(absModelPath));
+        const outputPath = await getUniqueFilename(resultsDir, baseName, ".jpg");
 
         const imgRes = await fetch(outputUrls[0]);
         const arrayBuffer = await imgRes.arrayBuffer();

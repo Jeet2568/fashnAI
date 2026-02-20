@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     }
 
     const fullPath = path.join(basePath, relPath);
+    console.log("Filesystem API Debug:", { basePath, relPath, fullPath });
 
     try {
         // Create directory if it doesn't exist (for the root path)

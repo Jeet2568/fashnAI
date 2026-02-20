@@ -24,12 +24,27 @@ interface Resource {
 
 export default function UserResourcesPage() {
     const [resources, setResources] = useState<Resource[]>([]);
+    const [categories, setCategories] = useState<string[]>([]);
+    const [activeCategory, setActiveCategory] = useState("all");
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         fetchResources();
+        fetchCategories();
     }, []);
+
+    const fetchCategories = async () => {
+        try {
+            const res = await fetch("/api/admin/resource-categories");
+            if (res.ok) {
+                const data = await res.json();
+                setCategories(data.map((c: any) => c.value));
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     const fetchResources = async () => {
         setLoading(true);
@@ -51,8 +66,10 @@ export default function UserResourcesPage() {
     };
 
     const filteredResources = resources.filter(r =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.type.toLowerCase().includes(searchQuery.toLowerCase())
+        (r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            r.type.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        r.type !== "model" &&
+        (activeCategory === "all" || r.type === activeCategory)
     );
 
     return (
@@ -66,14 +83,39 @@ export default function UserResourcesPage() {
                 </div>
             </div>
 
-            <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search for poses, lighting, accessories..."
-                    className="pl-9 bg-white"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
+            <div className="space-y-4">
+                <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search for poses, lighting, accessories..."
+                        className="pl-9 bg-white"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    <Button
+                        variant={activeCategory === "all" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setActiveCategory("all")}
+                        className="rounded-full"
+                    >
+                        All
+                    </Button>
+                    {categories.map(cat => (
+                        <Button
+                            key={cat}
+                            variant={activeCategory === cat ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setActiveCategory(cat)}
+                            className="rounded-full capitalize whitespace-nowrap"
+                        >
+                            {cat.replace(/_/g, " ")}
+                        </Button>
+                    ))}
+                </div>
             </div>
 
             {loading ? (
