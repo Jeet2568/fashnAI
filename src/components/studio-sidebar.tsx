@@ -110,6 +110,18 @@ export function StudioSidebar() {
                                         Try-On (Standard)
                                     </div>
                                 </Link>
+                                <Link
+                                    href="/studio/advanced"
+                                    className={cn(
+                                        "text-sm group flex p-2 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
+                                        checkActive("/studio/advanced") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                    )}
+                                >
+                                    <div className="flex items-center flex-1">
+                                        <Shirt className="h-4 w-4 mr-3" /> {/* Or another appropriate icon */}
+                                        Advanced Gen
+                                    </div>
+                                </Link>
                             </div>
                         )}
                     </div>
