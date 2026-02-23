@@ -38,19 +38,7 @@ export default function TryOnPage() {
     const [aspectRatio, setAspectRatio] = useState("3:4");
     const [numImages, setNumImages] = useState("1");
     const [resolution, setResolution] = useState("1k");
-    const [category, setCategory] = useState("tops");
-    const [categories, setCategories] = useState<{ label: string, value: string }[]>([]);
-
-    useEffect(() => {
-        fetch("/api/admin/resource-categories")
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data) && data.length > 0) {
-                    setCategories(data);
-                }
-            })
-            .catch(err => console.error("Failed to load categories", err));
-    }, []);
+    const category = "tops";
 
     // Upload States
     const [productImage, setProductImage] = useState<string | null>(null);
@@ -230,26 +218,7 @@ export default function TryOnPage() {
                     />
                     <div className="flex items-center gap-2 border-l pl-2">
 
-                        {/* Category Select */}
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="h-9 px-3 rounded-full border bg-white hover:bg-zinc-50 transition-colors text-xs font-medium focus:ring-0 shadow-sm min-w-[90px]">
-                                <span className="flex items-center gap-2">
-                                    <Shirt className="h-3.5 w-3.5 text-zinc-500" />
-                                    <SelectValue placeholder="Category" />
-                                </span>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {categories.length > 0 ? categories.map(cat => (
-                                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                                )) : (
-                                    <>
-                                        <SelectItem value="tops">Tops</SelectItem>
-                                        <SelectItem value="bottoms">Bottoms</SelectItem>
-                                        <SelectItem value="one-pieces">One-Pieces</SelectItem>
-                                    </>
-                                )}
-                            </SelectContent>
-                        </Select>
+
 
                         <Select value={resolution} onValueChange={setResolution}>
                             <SelectTrigger className="h-9 px-3 rounded-full border bg-white hover:bg-zinc-50 transition-colors text-xs font-medium focus:ring-0 shadow-sm min-w-[70px]">

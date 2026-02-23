@@ -271,7 +271,7 @@ export default function AdvancedBatchGeneratePage() {
     const { selectedFolder, setSelectedFolder } = useStore();
     const [numPhotos, setNumPhotos] = useState<number>(1);
     const [globalRatio, setGlobalRatio] = useState("3:4");
-    const [globalQuality, setGlobalQuality] = useState("high");
+    const [globalQuality, setGlobalQuality] = useState("balanced");
 
     const [gender, setGender] = useState<"male" | "female">("female");
     const [garmentType, setGarmentType] = useState("Dress");
@@ -460,8 +460,24 @@ export default function AdvancedBatchGeneratePage() {
                                     </span>
                                 </SelectTrigger>
                                 <SelectContent className="min-w-[220px]">
-                                    <SelectItem value="high">High Quality (HD)</SelectItem>
-                                    <SelectItem value="speed">Speed (Fast)</SelectItem>
+                                    <SelectItem value="precise" textValue="1K">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-medium">Precise 1K</span>
+                                            <span className="text-[10px] text-muted-foreground">Consistent, good instruction</span>
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="balanced" textValue="4K">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-medium">Balanced 4K <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
+                                            <span className="text-[10px] text-muted-foreground">Sharp detail, moderate creativity</span>
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="creative" textValue="4K">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-medium">Creative 4K <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
+                                            <span className="text-[10px] text-muted-foreground">UHD, high styling</span>
+                                        </div>
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -650,7 +666,7 @@ export default function AdvancedBatchGeneratePage() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-[240px]">
-                                    {["T-shirt", "Dress", "Jeans", "Jacket", "Skirt"].map(type => (
+                                    {["T-shirt", "Dress", "Jeans", "Jacket", "Skirt", "Saree"].map(type => (
                                         <DropdownMenuItem key={type} onClick={() => setGarmentType(type)}>{type}</DropdownMenuItem>
                                     ))}
                                 </DropdownMenuContent>

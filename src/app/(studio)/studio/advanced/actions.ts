@@ -17,7 +17,17 @@ export async function runAdvancedBatch(payloadJson: string) {
         const { configs, global } = payload;
 
         const nasRoot = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
-        const resolvePath = (p: string) => path.isAbsolute(p) ? p : path.join(nasRoot, p);
+        const resolvePath = (p: string) => {
+            if (p.startsWith("/api/filesystem/image")) {
+                const clean = p.split("?path=")[1]?.split("&")[0] || "";
+                const decoded = decodeURIComponent(clean);
+                return path.isAbsolute(decoded) ? decoded : path.join(nasRoot, decoded);
+            }
+            if (p.startsWith("/uploads/")) {
+                return path.join(process.cwd(), "public", p);
+            }
+            return path.isAbsolute(p) ? p : path.join(nasRoot, p);
+        };
 
         // 1. Prepare global background
         let bgBase64: string | undefined;
@@ -55,11 +65,12 @@ export async function runAdvancedBatch(payloadJson: string) {
             const promptParts = [];
             // "A {gender} wearing {garmentType}" is sometimes redundant if Fashn AI prefers pure scene description for backgrounds,
             // but product-to-model allows full description.
-            if (global.gender) promptParts.push(`A ${global.gender}`);
-            if (global.garmentType) promptParts.push(`wearing ${global.garmentType}`);
+            const gender = global.gender || "woman";
+            promptParts.push(`A ${gender}`);
+            if (global.garmentType) promptParts.push(`wearing a women's ${global.garmentType}`);
             if (config.posePrompt) promptParts.push(config.posePrompt);
             if (config.anglePrompt) promptParts.push(config.anglePrompt);
-            if (config.accessoriesPrompt) promptParts.push(`Accessories: ${config.accessoriesPrompt}`);
+            if (config.accessoriesPrompt) promptParts.push(`Styled with women's accessories: ${config.accessoriesPrompt}`);
 
             if (global.bgType === "prompt" && global.bgPrompt) {
                 promptParts.push(`Background setting: ${global.bgPrompt}`);
@@ -74,9 +85,9 @@ export async function runAdvancedBatch(payloadJson: string) {
                     model_image: modelBase64,
                     prompt: finalPrompt || "Fashion portrait",
                     aspect_ratio: global.ratio as any || "3:4",
-                    background_reference: bgBase64,
+                    background_reference: modelBase64 ? undefined : bgBase64,
                     num_images: 1, // 1 per slot
-                    garment_photo_type: config.garmentMode === "auto" ? "auto" : undefined,
+                    hd: (global.quality === "balanced" || global.quality === "creative") ? true : undefined,
                 });
 
                 if (initialResponse.error) {
@@ -152,7 +163,8 @@ export async function runAdvancedBatch(payloadJson: string) {
 
                     await fs.writeFile(savePath, Buffer.from(arrayBuffer));
                     allSavedPaths.push(savePath);
-                    finalResults.push({ configId: job.configId, savedPath: savePath });
+                    const relPath = path.relative(nasRoot, savePath).replace(/\\/g, '/');
+                    finalResults.push({ configId: job.configId, savedPath: relPath });
                 } catch (e: any) {
                     finalResults.push({ configId: job.configId, error: e.message });
                 }

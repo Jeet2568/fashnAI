@@ -67,8 +67,8 @@ export default function ModelsPage() {
     };
 
     const handleGenerate = async () => {
-        if (!faceImage || !poseImage) {
-            toast.error("Please upload both Face and Pose references.");
+        if (!faceImage && !poseImage && !prompt) {
+            toast.error("Please provide at least a text prompt, or upload reference images.");
             return;
         }
 
@@ -217,7 +217,7 @@ export default function ModelsPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Edit Prompt (Optional)</Label>
+                                <Label>Prompt (Required if no images provided)</Label>
                                 <Textarea
                                     placeholder="Describe lighting, changes, etc."
                                     value={prompt}
@@ -230,7 +230,7 @@ export default function ModelsPage() {
                                 className="w-full"
                                 size="lg"
                                 onClick={handleGenerate}
-                                disabled={isGenerating || !faceImage || !poseImage}
+                                disabled={isGenerating || (!faceImage && !poseImage && !prompt)}
                             >
                                 {isGenerating ? (
                                     <>
@@ -251,16 +251,18 @@ export default function ModelsPage() {
                 <div className="lg:col-span-8 flex flex-col gap-6 overflow-hidden">
 
                     {/* Preview Area */}
-                    <Card className="flex-1 flex flex-col min-h-[400px]">
-                        <CardHeader className="pb-2">
+                    <Card className="flex-1 flex flex-col min-h-0">
+                        <CardHeader className="pb-2 shrink-0">
                             <CardTitle>Generated Result</CardTitle>
                         </CardHeader>
-                        <CardContent className="flex-1 flex flex-col gap-4">
-                            <div className="flex-1 bg-muted/20 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden relative">
+                        <CardContent className="flex-1 flex flex-col gap-4 min-h-0 pb-4">
+                            <div className="flex-1 bg-muted/20 rounded-xl border-2 border-dashed relative overflow-hidden">
                                 {generatedImage ? (
-                                    <img src={generatedImage} alt="Result" className="h-full w-full object-contain" />
+                                    <div className="absolute inset-0 flex items-center justify-center p-2">
+                                        <img src={generatedImage} alt="Result" className="w-full h-full object-contain drop-shadow-md rounded-md" />
+                                    </div>
                                 ) : (
-                                    <div className="text-muted-foreground flex flex-col items-center gap-2">
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-2">
                                         <Sparkles className="h-10 w-10 opacity-20" />
                                         <p>Result will appear here</p>
                                     </div>
@@ -268,7 +270,7 @@ export default function ModelsPage() {
                             </div>
 
                             {generatedImage && (
-                                <div className="flex gap-4 items-end pt-2">
+                                <div className="flex gap-4 items-end shrink-0">
                                     <div className="flex-1 space-y-2">
                                         <Label>Model Name</Label>
                                         <Input

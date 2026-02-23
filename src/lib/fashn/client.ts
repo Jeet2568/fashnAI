@@ -37,10 +37,10 @@ export interface ProductToModelInput {
     num_images?: number;
     output_format?: "png" | "jpeg";
     seed?: number;
-    garment_photo_type?: "auto" | "model" | "flat-lay";
     adjust_hands?: boolean;
     restore_clothes?: boolean;
     restore_background?: boolean;
+    hd?: boolean;
 }
 
 export interface ModelSwapInput {
@@ -59,6 +59,15 @@ export interface EditInput {
     prompt: string;
     seed?: number;
     output_format?: "png" | "jpeg";
+    return_base64?: boolean;
+}
+
+export interface ModelCreateInput {
+    prompt?: string;
+    image_reference?: string;
+    face_reference?: string;
+    face_reference_mode?: "match_base" | "match_reference";
+    aspect_ratio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "2:3" | "3:2" | "4:5" | "5:4";
     return_base64?: boolean;
 }
 
@@ -110,6 +119,13 @@ export class FashnClient {
     }
 
     /**
+     * Submit a Model Create job
+     */
+    async runModelCreate(input: ModelCreateInput): Promise<RunResponse> {
+        return this._post("/run", { model_name: "model-create", inputs: input });
+    }
+
+    /**
      * Internal POST helper
      */
     private async _post(endpoint: string, body: any): Promise<RunResponse> {
@@ -143,6 +159,31 @@ export class FashnClient {
 
         if (!response.ok) {
             throw new Error(`Failed to get status for job ${id}`);
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Get the current API credit balance
+     */
+    async getCredits(): Promise<{
+        credits: {
+            total: number;
+            subscription: number;
+            on_demand: number;
+        }
+    }> {
+        const response = await fetch(`${this.baseUrl}/credits`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${this.apiKey}`,
+            },
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get API credits`);
         }
 
         return response.json();

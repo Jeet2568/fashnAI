@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FolderOpen, Layers, CheckCircle, XCircle, Clock } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { getDashboardStats } from "@/app/(studio)/studio/actions";
 
 interface StatsRowProps {
     className?: string;
@@ -12,13 +14,23 @@ export function StatsRow({ className }: StatsRowProps) {
     // Connect to global store for real data
     const { selectedFolder } = useStore();
 
-    // Mock data for now - will connect to real API later
-    const stats = {
+    const [stats, setStats] = useState({
         queue: 0,
-        today: 12,
-        success: 10,
-        fail: 2
-    };
+        today: 0,
+        success: 0,
+        fail: 0
+    });
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            const data = await getDashboardStats();
+            if (data) setStats(data);
+        };
+        fetchStats();
+        // optionally set up polling
+        const interval = setInterval(fetchStats, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className={`grid grid-cols-2 lg:grid-cols-5 gap-4 ${className}`}>

@@ -1,14 +1,32 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getAdminDashboardStats } from "@/app/(admin)/admin/actions";
+
+interface QueueItem {
+    id: string;
+    user: string;
+    task: string;
+    status: string;
+    time: string;
+}
 
 export function AdminQueue() {
-    // Mock Queue Data
-    const queue = [
-        { id: "job_123", user: "Client A", task: "Model Swap", status: "processing", time: "2m ago" },
-        { id: "job_124", user: "Client B", task: "Try-On", status: "queued", time: "5m ago" },
-        { id: "job_125", user: "Client A", task: "Edit", status: "queued", time: "12m ago" },
-        { id: "job_126", user: "Client C", task: "Model Swap", status: "queued", time: "15m ago" },
-    ];
+    const [queue, setQueue] = useState<QueueItem[]>([]);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            const data = await getAdminDashboardStats();
+            if (data && data.queueList) {
+                setQueue(data.queueList);
+            }
+        };
+        fetchStats();
+        const interval = setInterval(fetchStats, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <Card className="h-full flex flex-col">

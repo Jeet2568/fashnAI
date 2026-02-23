@@ -21,8 +21,15 @@ export async function runMakeItMore(
     try {
         const nasRoot = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
         const resolvePath = (p: string) => {
-            if (path.isAbsolute(p)) return p;
-            return path.join(nasRoot, p);
+            if (p.startsWith("/api/filesystem/image")) {
+                const clean = p.split("?path=")[1]?.split("&")[0] || "";
+                const decoded = decodeURIComponent(clean);
+                return path.isAbsolute(decoded) ? decoded : path.join(nasRoot, decoded);
+            }
+            if (p.startsWith("/uploads/")) {
+                return path.join(process.cwd(), "public", p);
+            }
+            return path.isAbsolute(p) ? p : path.join(nasRoot, p);
         };
 
         const modelPath = formData.get("model") as string;
@@ -81,6 +88,7 @@ export async function runMakeItMore(
                     restore_clothes: false,
                     garment_photo_type: options.garment_photo_type as any,
                     seed,
+                    quality: options.quality as any,
                     // num_inference_steps removed (not in interface)
                     guidance_scale: 2.5,
                     nsfw_filter: true,
@@ -95,6 +103,7 @@ export async function runMakeItMore(
                     num_images: 1, // Always 1 per slot
                     seed,
                     background_reference: backgroundImage,
+                    hd: (options.quality === "balanced" || options.quality === "creative") ? true : undefined,
                     // adjust_hands, restore_clothes, restore_background, garment_photo_type are NOT supported in Product To Model
                 });
             }

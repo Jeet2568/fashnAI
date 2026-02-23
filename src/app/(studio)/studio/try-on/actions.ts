@@ -19,8 +19,15 @@ export async function runTryOnAction(
 
         // Helper to resolve paths
         const resolvePath = (p: string) => {
-            if (path.isAbsolute(p)) return p;
-            return path.join(nasRoot, p);
+            if (p.startsWith("/api/filesystem/image")) {
+                const clean = p.split("?path=")[1]?.split("&")[0] || "";
+                const decoded = decodeURIComponent(clean);
+                return path.isAbsolute(decoded) ? decoded : path.join(nasRoot, decoded);
+            }
+            if (p.startsWith("/uploads/")) {
+                return path.join(process.cwd(), "public", p);
+            }
+            return path.isAbsolute(p) ? p : path.join(nasRoot, p);
         };
 
         const absModelPath = resolvePath(modelPath);
@@ -43,6 +50,7 @@ export async function runTryOnAction(
         if (options.seed) payload.seed = options.seed;
         if (options.garment_photo_type) payload.garment_photo_type = options.garment_photo_type;
         if (options.long_top) payload.long_top = options.long_top;
+        if (options.quality) payload.quality = options.quality;
 
         const response = await fashnClient.runTryOn(payload);
 

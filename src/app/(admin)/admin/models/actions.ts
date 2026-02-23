@@ -32,22 +32,22 @@ export async function runModelGen(formData: FormData) {
             return path.join(nasRoot, decoded);
         };
 
-        const absFacePath = resolvePath(faceImage);
-        const absPosePath = resolvePath(poseImage);
+        const absFacePath = faceImage ? resolvePath(faceImage) : "";
+        const absPosePath = poseImage ? resolvePath(poseImage) : "";
 
         // Convert to Base64 for API
-        const faceB64 = await fileToBase64(absFacePath);
-        const poseB64 = await fileToBase64(absPosePath);
+        const faceB64 = absFacePath ? await fileToBase64(absFacePath) : undefined;
+        const poseB64 = absPosePath ? await fileToBase64(absPosePath) : undefined;
 
-        // Call Model Swap
-        // "Pose Reference" is the 'model_image' (target body)
+        // Call Model Create
+        // "Pose Reference" is the 'image_reference' (target body/pose)
         // "Face Reference" is the 'face_reference' (source identity)
-        const response = await fashnClient.runModelSwap({
-            model_image: poseB64,
+        const response = await fashnClient.runModelCreate({
+            image_reference: poseB64,
             face_reference: faceB64,
-            prompt: prompt,
+            prompt: prompt ? prompt : undefined,
             face_reference_mode: "match_reference", // Enforce strong likeness
-            num_images: numImages,
+            aspect_ratio: ratio as any,
             return_base64: false
             // output_format?
         });
@@ -88,6 +88,7 @@ export async function saveGeneratedModel(imageUrl: string, name: string) {
 
         const filename = `${name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.jpg`;
         const outputPath = path.join(modelsDir, filename);
+        const relPath = path.join("Models", filename);
 
         // Download and Save
         const response = await fetch(imageUrl);
@@ -100,7 +101,7 @@ export async function saveGeneratedModel(imageUrl: string, name: string) {
                 type: "model",
                 name: name,
                 prompt: "Generated Model",
-                thumbnail: `/api/filesystem/image?path=${encodeURIComponent(outputPath)}`, // Serve via FS API
+                thumbnail: `/api/filesystem/image?path=${encodeURIComponent(relPath.replace(/\\/g, '/'))}`, // Serve via FS API
                 // We might want to store the actual path too if Resource table supported it, 
                 // but currently it relies on 'thumbnail' field acting as the reference often?
                 // Actually Resource table has: id, type, name, prompt, thumbnail.

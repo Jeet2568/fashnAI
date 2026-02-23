@@ -7,8 +7,15 @@ const SETTING_KEY = "resource_categories";
 const DEFAULT_CATEGORIES = [
     { label: "Poses", value: "pose", thumbnail: "" },
     { label: "Backgrounds", value: "background", thumbnail: "" },
-    { label: "Accessories", value: "accessory", thumbnail: "" },
-    { label: "Camera Angles", value: "camera_angle", thumbnail: "" },
+    { label: "Camera Angles", value: "angle", thumbnail: "" },
+    // Accessories
+    { label: "Earrings", value: "earrings", thumbnail: "" },
+    { label: "Necklace", value: "necklace", thumbnail: "" },
+    { label: "Bracelet", value: "bracelet", thumbnail: "" },
+    { label: "Rings", value: "rings", thumbnail: "" },
+    { label: "Shoes", value: "shoes", thumbnail: "" },
+    { label: "Watch", value: "watch", thumbnail: "" },
+    { label: "Handbag", value: "handbag", thumbnail: "" },
 ];
 
 export async function GET() {

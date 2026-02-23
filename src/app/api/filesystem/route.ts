@@ -48,11 +48,20 @@ export async function GET(req: Request) {
 
         const entries = await fs.readdir(fullPath, { withFileTypes: true });
 
-        const files = entries.map((entry) => ({
-            name: entry.name,
-            isDirectory: entry.isDirectory(),
-            path: path.join(relPath, entry.name).replace(/\\/g, "/"),
-            // We could add size/date if needed
+        const files = await Promise.all(entries.map(async (entry) => {
+            const entryPath = path.join(fullPath, entry.name);
+            let mtimeMs = 0;
+            try {
+                const stat = await fs.stat(entryPath);
+                mtimeMs = stat.mtimeMs;
+            } catch (e) { }
+
+            return {
+                name: entry.name,
+                isDirectory: entry.isDirectory(),
+                path: path.join(relPath, entry.name).replace(/\\/g, "/"),
+                mtimeMs
+            };
         }));
 
         // Sort: Directories first, then files
