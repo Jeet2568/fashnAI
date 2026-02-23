@@ -14,7 +14,8 @@ import {
     Camera,
     ArrowLeftRight,
     User,
-    LogOut
+    LogOut,
+    Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/app/actions";
@@ -175,6 +176,18 @@ export function StudioSidebar() {
                             <div className="flex items-center flex-1">
                                 <History className="h-4 w-4 mr-3" />
                                 History
+                            </div>
+                        </Link>
+                        <Link
+                            href="/studio/notifications"
+                            className={cn(
+                                "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
+                                checkActive("/studio/notifications") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                            )}
+                        >
+                            <div className="flex items-center flex-1">
+                                <Bell className="h-4 w-4 mr-3" />
+                                Notifications
                             </div>
                         </Link>
                     </div>

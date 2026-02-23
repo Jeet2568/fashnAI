@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+
 const createNotificationSchema = z.object({
     userId: z.string().min(1, "User is required"),
     message: z.string().min(1, "Message is required"),
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
         console.error("[Notification POST] Error:", error); // Debug Log
 
         if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.errors }, { status: 400 });
+            return NextResponse.json({ error: (error as any).errors }, { status: 400 });
         }
 
         // Return actual error for debugging
