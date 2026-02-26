@@ -1,6 +1,6 @@
 "use client";
 
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Edit, Download, X, Info, Maximize2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -45,7 +45,8 @@ export function ImageViewerDialog({ path, isOpen, onClose }: ImageViewerDialogPr
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-[90vw] h-[90vh] p-0 border-none bg-black/95 text-white flex flex-col items-center justify-center">
+            <DialogContent showCloseButton={false} className="max-w-[90vw] h-[90vh] p-0 border-none bg-black/95 text-white flex flex-col items-center justify-center">
+                <DialogTitle className="sr-only">Image Viewer</DialogTitle>
                 {/* Header Actions */}
                 <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
                     <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white" onClick={handleDownload} title="Download">

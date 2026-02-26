@@ -87,7 +87,7 @@ function ModelSwapContent() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#FDFBF7]">
+        <div className="flex flex-col h-full bg-background">
             {/* Top Bar */}
             <div className="px-6 py-4 max-w-5xl mx-auto w-full flex items-center gap-3">
                 <div className="relative flex-1">
@@ -165,6 +165,7 @@ function ModelSwapContent() {
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+                        <DialogTitle className="sr-only">Select Face Reference</DialogTitle>
                         <div className="p-4 border-b">
                             <h2 className="text-lg font-bold">Select Face Reference</h2>
                         </div>
@@ -205,6 +206,7 @@ function ModelSwapContent() {
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+                                        <DialogTitle className="sr-only">Select Source Image</DialogTitle>
                                         <div className="p-4 border-b">
                                             <h2 className="text-lg font-bold">Select Source Image</h2>
                                         </div>

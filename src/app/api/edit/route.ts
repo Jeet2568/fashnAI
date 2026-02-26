@@ -5,12 +5,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { fashnClient } from "@/lib/fashn/client";
+import { getSetting, SETTINGS_KEYS } from "@/lib/settings";
 import { fileToBase64, getUniqueFilename, determineResultsDir } from "@/lib/server-utils";
 
 
 
 export async function POST(req: Request) {
+    let dbJobId: string | null = null;
     try {
+        const user = await getCurrentUser();
+        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const body = await req.json();
         const { imagePath, maskImage, prompt } = z.object({
             imagePath: z.string(),
@@ -18,22 +23,49 @@ export async function POST(req: Request) {
             prompt: z.string(),
         }).parse(body);
 
-        // 1. Verify Original File Exists
+        const dbJob = await prisma.job.create({
+            data: {
+                userId: user.id,
+                status: "PROCESSING",
+                inputParams: JSON.stringify({
+                    type: "edit",
+                    prompt,
+                    source: imagePath
+                }),
+            }
+        });
+        dbJobId = dbJob.id;
+
+        // 1. Resolve Global Paths
+        const basePath = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
+
+        const resolvePath = (p: string) => {
+            if (p.startsWith("/api/filesystem/image")) {
+                const clean = p.split("?path=")[1]?.split("&")[0] || "";
+                p = decodeURIComponent(clean);
+            }
+            return path.isAbsolute(p) ? p : path.join(basePath, p);
+        };
+
+        const fullSourcePath = resolvePath(imagePath);
+
+        // 2. Verify Original File Exists
         try {
-            await fs.access(imagePath);
+            await fs.access(fullSourcePath);
         } catch {
+            console.error(`Edit API: Source file not found at ${fullSourcePath}`);
             return NextResponse.json({ error: "Original file not found" }, { status: 404 });
         }
 
-        // 2. Determine Output Path
+        // 3. Determine Output Path
         const filename = path.basename(imagePath, path.extname(imagePath));
-        const resultsDir = determineResultsDir(imagePath);
+        const resolvedResultsDir = determineResultsDir(fullSourcePath);
 
-        const outputPath = await getUniqueFilename(resultsDir, filename, ".png");
+        const fullOutputPath = await getUniqueFilename(resolvedResultsDir, filename, ".png");
 
-        // 3. Call Fashn.ai API
+        // 4. Call Fashn.ai API
         console.log("Starting Edit...");
-        const sourceBase64 = await fileToBase64(imagePath);
+        const sourceBase64 = await fileToBase64(fullSourcePath);
 
         // Note: Fashn Edit doesn't strictly take a mask in the 'inputs' according to some docs,
         // but often Inpainting uses source + mask + prompt.
@@ -77,34 +109,42 @@ export async function POST(req: Request) {
 
         if (!outputUrl) throw new Error("Job timed out or returned no output");
 
-        // 4. Save Result
+        // Save Result
         const imageRes = await fetch(outputUrl);
         const arrayBuffer = await imageRes.arrayBuffer();
-        await fs.writeFile(outputPath, Buffer.from(arrayBuffer));
+        await fs.mkdir(path.dirname(fullOutputPath), { recursive: true });
+        await fs.writeFile(fullOutputPath, Buffer.from(arrayBuffer));
 
-        // 5. Record Job in DB
-        const user = await getCurrentUser();
-        await prisma.job.create({
+        // 5. Update Job in DB
+        const relativeOutputPath = path.relative(basePath, fullOutputPath).replace(/\\/g, "/");
+
+        await prisma.job.update({
+            where: { id: dbJobId },
             data: {
-                userId: user.id,
                 status: "COMPLETED",
-                inputParams: JSON.stringify({
-                    type: "edit",
-                    prompt,
-                    source: imagePath
-                }),
-                outputPaths: JSON.stringify([outputPath]),
+                outputPaths: JSON.stringify([relativeOutputPath]),
             }
         });
 
         return NextResponse.json({
             success: true,
-            path: outputPath,
-            filename: path.basename(outputPath)
+            path: relativeOutputPath,
+            filename: path.basename(fullOutputPath)
         });
 
     } catch (error: any) {
         console.error("Edit API Error:", error);
+        if (dbJobId) {
+            try {
+                await prisma.job.update({
+                    where: { id: dbJobId },
+                    data: {
+                        status: "FAILED",
+                        error: error.message || "Unknown error"
+                    }
+                });
+            } catch (e) { }
+        }
         return NextResponse.json({ error: error.message || "Failed to process edit" }, { status: 500 });
     }
 }

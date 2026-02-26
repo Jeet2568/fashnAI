@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, Copy } from "lucide-react";
+import { Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -11,14 +11,16 @@ interface Resource {
     name: string;
     prompt: string;
     thumbnail?: string;
+    createdAt: string;
 }
 
 interface ResourceCardProps {
     resource: Resource;
+    onEdit?: (resource: Resource) => void;
     onDelete: (id: string) => void;
 }
 
-export function ResourceCard({ resource, onDelete }: ResourceCardProps) {
+export function ResourceCard({ resource, onEdit, onDelete }: ResourceCardProps) {
     const copyPrompt = () => {
         navigator.clipboard.writeText(resource.prompt);
         toast.success("Prompt copied to clipboard");
@@ -55,15 +57,28 @@ export function ResourceCard({ resource, onDelete }: ResourceCardProps) {
                             <h3 className="font-semibold text-xl tracking-tight">{resource.name}</h3>
                         </div>
 
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-destructive shrink-0"
-                            onClick={() => onDelete(resource.id)}
-                            title="Delete Resource"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                            {onEdit && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-muted-foreground hover:text-foreground shrink-0"
+                                    onClick={() => onEdit(resource)}
+                                    title="Edit Resource"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                </Button>
+                            )}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:text-destructive shrink-0"
+                                onClick={() => onDelete(resource.id)}
+                                title="Delete Resource"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex-1 bg-muted/30 rounded-lg p-3 border border-border/50 relative group">

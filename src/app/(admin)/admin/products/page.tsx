@@ -132,6 +132,7 @@ function ProductListContent() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
+                            <DialogTitle className="sr-only">Add New Product</DialogTitle>
                             <DialogHeader>
                                 <DialogTitle>Add New Product</DialogTitle>
                             </DialogHeader>

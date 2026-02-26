@@ -46,7 +46,7 @@ export default function StudioHistoryPage() {
     const [viewerPath, setViewerPath] = useState<string | null>(null);
 
     return (
-        <div className="flex h-full flex-col bg-[#FDFBF7]">
+        <div className="flex h-full flex-col bg-background">
             <div className="px-6 py-4 border-b flex items-center justify-between bg-white">
                 <div>
                     <h1 className="text-xl font-bold">History</h1>

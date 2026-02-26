@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { FolderIcon, Plus, Trash2, ArrowLeft, RefreshCw, XCircle } from "lucide-react";
@@ -28,6 +28,7 @@ export default function StudioGalleryPage() {
     const [loadingAssets, setLoadingAssets] = useState(false);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [newFolderName, setNewFolderName] = useState("");
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     // File Operation State
     const [isSelectMode, setIsSelectMode] = useState(false);
@@ -205,7 +206,7 @@ export default function StudioGalleryPage() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] p-6 space-y-4">
+        <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] p-6 space-y-4 overflow-hidden">
             {/* Top Bar: Breadcrumbs & Actions */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                 {/* Breadcrumbs */}
@@ -236,93 +237,35 @@ export default function StudioGalleryPage() {
 
                 {/* Action Bar */}
                 <div className="flex items-center gap-1 bg-background border rounded-md p-1 shadow-sm overflow-x-auto">
-                    <Button
-                        variant={isSelectMode ? "secondary" : "ghost"}
-                        size="sm"
-                        className={cn("h-8 px-3", isSelectMode && "bg-primary/20 text-primary hover:bg-primary/30")}
-                        onClick={() => {
-                            setIsSelectMode(!isSelectMode);
-                            if (isSelectMode) setSelectedItems(new Set());
-                        }}
-                    >
-                        Select {selectedItems.size > 0 && `(${selectedItems.size})`}
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3" onClick={() => handleToolbarAction("move")}>Move</Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3" onClick={() => handleToolbarAction("copy")}>Copy</Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-3 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/50"
-                        onClick={handleReject}
-                    >
-                        <XCircle className="w-4 h-4 mr-1" />
-                        Reject
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-3 relative"
-                        onClick={handlePaste}
-                        disabled={!clipboard}
-                    >
-                        Paste
-                        {clipboard && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />}
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50" onClick={() => handleToolbarAction("delete")}>Delete</Button>
-
-                    <div className="w-px h-4 bg-border mx-1" />
-
                     <Button variant="ghost" size="icon" onClick={fetchAssets} disabled={loadingAssets} className="h-8 w-8 text-muted-foreground hover:text-foreground">
                         <RefreshCw className={cn("w-4 h-4", loadingAssets && "animate-spin")} />
                     </Button>
-
-                    <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 px-3 text-primary hover:text-primary hover:bg-primary/10">
-                                <Plus className="w-4 h-4 mr-1" /> New
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Create New Folder</DialogTitle>
-                            </DialogHeader>
-                            <div className="py-4">
-                                <Input
-                                    placeholder="Folder Name"
-                                    value={newFolderName}
-                                    onChange={(e) => setNewFolderName(e.target.value)}
-                                />
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
-                                <Button onClick={handleCreateFolder}>Create</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
                 </div>
             </div>
 
             {/* Main Split Layout Area */}
             <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
                 {/* Left: Folder Tree Explorer */}
-                <Card className="w-1/3 min-w-[250px] max-w-[350px] flex flex-col overflow-hidden shadow-sm">
+                <Card className="w-1/3 min-w-[250px] max-w-[350px] flex flex-col min-h-0 overflow-hidden shadow-sm">
                     <div className="p-4 border-b bg-muted/20">
                         <h3 className="font-semibold flex items-center gap-2 text-sm">
                             <FolderIcon className="w-5 h-5 text-muted-foreground shrink-0" />
                             File Explorer
                         </h3>
                     </div>
-                    <ScrollArea className="flex-1 p-2">
-                        <FolderTree
-                            path=""
-                            onSelect={setSelectedFolderPath}
-                            selectedPath={selectedFolderPath}
-                        />
+                    <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-2 min-w-fit">
+                            <FolderTree
+                                path=""
+                                onSelect={setSelectedFolderPath}
+                                selectedPath={selectedFolderPath}
+                            />
+                        </div>
                     </ScrollArea>
                 </Card>
 
                 {/* Right: Content Grid */}
-                <Card className="flex-1 flex flex-col overflow-hidden shadow-sm bg-muted/10">
+                <Card className="flex-1 flex flex-col min-h-0 overflow-hidden shadow-sm bg-muted/10">
                     <div className="p-4 border-b flex items-center justify-between bg-background/50">
                         <span className="text-sm font-medium text-muted-foreground flex items-center">
                             {(() => {
@@ -376,7 +319,7 @@ export default function StudioGalleryPage() {
                         </div>
                     </div>
 
-                    <ScrollArea className="flex-1 p-4">
+                    <ScrollArea className="flex-1 min-h-0 p-4">
                         {(() => {
                             const filteredAssets = assets
                                 .filter(a => !a.isDirectory)
@@ -432,15 +375,10 @@ export default function StudioGalleryPage() {
                                                         else newSet.add(file.path);
                                                         setSelectedItems(newSet);
                                                     } else {
-                                                        window.open(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`, '_blank');
+                                                        setPreviewImage(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`);
                                                     }
                                                 }}
                                             >
-                                                <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                                    <Button variant="destructive" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(file.path, e)}>
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </Button>
-                                                </div>
                                                 <Image
                                                     src={`/api/filesystem/image?path=${encodeURIComponent(file.path)}`}
                                                     alt={file.name}
@@ -469,6 +407,24 @@ export default function StudioGalleryPage() {
                     </ScrollArea>
                 </Card>
             </div>
+
+            {/* Image Preview Modal */}
+            <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+                <DialogContent showCloseButton={false} className="max-w-[90vw] max-h-[90vh] p-1 bg-transparent border-none shadow-none flex items-center justify-center">
+                    <DialogTitle className="sr-only">Image Preview</DialogTitle>
+                    {previewImage && (
+                        <div className="relative w-full h-[85vh]">
+                            <Image
+                                src={previewImage}
+                                alt="Preview"
+                                fill
+                                className="object-contain"
+                                unoptimized
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

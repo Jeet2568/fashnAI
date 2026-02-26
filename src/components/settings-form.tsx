@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -89,7 +89,7 @@ export function SettingsForm({ fashnApiKeyConfigured, nasRootPath }: SettingsFor
                     <CardContent className="space-y-4">
                         <div className="grid gap-2">
                             <Label htmlFor="site-name">Application Name</Label>
-                            <Input id="site-name" defaultValue="Studio AI" />
+                            <Input id="site-name" defaultValue="CodeVeda AI" />
                         </div>
                         <div className="flex items-center justify-between rounded-lg border p-4">
                             <div className="space-y-0.5">

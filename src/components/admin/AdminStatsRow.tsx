@@ -2,100 +2,155 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, CreditCard, HardDrive, CheckCircle2, XCircle } from "lucide-react";
-import { getAdminDashboardStats } from "@/app/(admin)/admin/actions";
+import { Activity, CreditCard, HardDrive, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+
+interface AdminStats {
+    totalCredits: number;
+    creditBreakdown?: { subscription: number; on_demand: number; total: number };
+    activeJobs: number;
+    reqThisMonth: number;
+    completedThisMonth: number;
+    failedThisMonth: number;
+    completedAllTime: number;
+    failedAllTime: number;
+    successRate: string;
+    error?: string;
+}
 
 export function AdminStatsRow() {
-    const [stats, setStats] = useState({
+    const [stats, setStats] = useState<AdminStats>({
         totalCredits: 0,
         activeJobs: 0,
         reqThisMonth: 0,
+        completedThisMonth: 0,
+        failedThisMonth: 0,
+        completedAllTime: 0,
+        failedAllTime: 0,
         successRate: "0.0",
-        error: null as string | null
     });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchStats = async () => {
+        try {
+            const res = await fetch("/api/admin/stats", { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.error) { setError(data.error); return; }
+            setStats(data);
+            setError(null);
+        } catch (e: any) {
+            setError(e.message || "Failed to load stats");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchStats = async () => {
-            const data = await getAdminDashboardStats();
-            if (data && data.error) {
-                setStats(prev => ({ ...prev, error: data.error }));
-                return;
-            }
-            if (data) {
-                setStats({
-                    totalCredits: data.totalCredits ?? 0,
-                    activeJobs: data.activeJobs ?? 0,
-                    reqThisMonth: data.reqThisMonth ?? 0,
-                    successRate: data.successRate ?? "0.0",
-                    error: null
-                });
-            }
-        };
         fetchStats();
-        const interval = setInterval(fetchStats, 10000);
+        const interval = setInterval(fetchStats, 15000);
         return () => clearInterval(interval);
     }, []);
+
+    const val = (v: React.ReactNode) =>
+        loading
+            ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            : <div className="text-2xl font-bold">{v}</div>;
+
+    const bd = stats.creditBreakdown;
+
     return (
         <div className="space-y-4">
-            {stats.error && (
-                <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg font-mono text-sm">
-                    <strong>Dashboard Sync Error:</strong> {stats.error}
+            {error && (
+                <div className="p-3 bg-red-50 border border-red-300 text-red-700 rounded-lg text-sm">
+                    <strong>Stats Error:</strong> {error}
                 </div>
             )}
-            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+
+                {/* API Status */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">API Status</CardTitle>
                         <Activity className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">Operational</div>
-                        <p className="text-xs text-muted-foreground">Tier: Enterprise</p>
+                        <div className="text-2xl font-bold text-green-600">Live</div>
+                        <p className="text-xs text-muted-foreground">Fashn.ai Connected</p>
                     </CardContent>
                 </Card>
+
+                {/* Credits — shows total with sub/on-demand breakdown */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Credits</CardTitle>
                         <CreditCard className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.totalCredits.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Available</p>
+                        {val(stats.totalCredits.toLocaleString())}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            {bd
+                                ? `Sub: ${bd.subscription} · On-demand: ${bd.on_demand}`
+                                : "Available balance"}
+                        </p>
                     </CardContent>
                 </Card>
+
+                {/* Active Jobs */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Current Use</CardTitle>
+                        <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
                         <Activity className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.activeJobs}</div>
-                        <p className="text-xs text-muted-foreground">Active Jobs</p>
+                        {val(stats.activeJobs)}
+                        <p className="text-xs text-muted-foreground">Running now</p>
                     </CardContent>
                 </Card>
+
+                {/* Total Requests this month */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Req</CardTitle>
                         <HardDrive className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.reqThisMonth.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">This Month</p>
+                        {val(stats.reqThisMonth.toLocaleString())}
+                        <p className="text-xs text-muted-foreground">This month</p>
                     </CardContent>
                 </Card>
+
+                {/* Completed all-time */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Success/Fail</CardTitle>
+                        <CardTitle className="text-sm font-medium">Completed</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    </CardHeader>
+                    <CardContent>
+                        {val(<span className="text-green-600">{stats.completedAllTime}</span>)}
+                        <p className="text-xs text-muted-foreground">
+                            This month: {stats.completedThisMonth}
+                        </p>
+                    </CardContent>
+                </Card>
+
+                {/* Failed + success rate */}
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
                         <div className="flex gap-1">
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            <XCircle className="h-4 w-4 text-red-500" />
+                            <XCircle className="h-4 w-4 text-red-400" />
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.successRate}%</div>
-                        <p className="text-xs text-muted-foreground">Success Rate</p>
+                        {val(<span className={Number(stats.successRate) < 80 ? "text-red-600" : "text-green-600"}>{stats.successRate}%</span>)}
+                        <p className="text-xs text-muted-foreground">
+                            {stats.failedAllTime} failed all-time
+                        </p>
                     </CardContent>
                 </Card>
+
             </div>
         </div>
     );

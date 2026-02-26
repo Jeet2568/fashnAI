@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { getSetting, SETTINGS_KEYS } from "@/lib/settings";

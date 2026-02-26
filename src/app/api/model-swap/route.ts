@@ -5,10 +5,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { fashnClient } from "@/lib/fashn/client";
+import { getSetting, SETTINGS_KEYS } from "@/lib/settings";
 import { fileToBase64, getUniqueFilename, determineResultsDir } from "@/lib/server-utils";
 
 export async function POST(req: Request) {
+    let dbJobId: string | null = null;
     try {
+        const user = await getCurrentUser();
+        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const body = await req.json();
         const { sourceImage, faceReference, prompt } = z.object({
             sourceImage: z.string(),
@@ -16,24 +21,53 @@ export async function POST(req: Request) {
             prompt: z.string().optional(),
         }).parse(body);
 
-        // 1. Verify Original File Exists
+        const dbJob = await prisma.job.create({
+            data: {
+                userId: user.id,
+                status: "PROCESSING",
+                inputParams: JSON.stringify({
+                    type: "model-swap",
+                    prompt,
+                    source: sourceImage,
+                    faceReference: faceReference || "none"
+                }),
+            }
+        });
+        dbJobId = dbJob.id;
+
+        // 1. Resolve Global Paths
+        const basePath = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
+
+        const resolvePath = (p: string) => {
+            if (p.startsWith("/api/filesystem/image")) {
+                const clean = p.split("?path=")[1]?.split("&")[0] || "";
+                p = decodeURIComponent(clean);
+            }
+            return path.isAbsolute(p) ? p : path.join(basePath, p);
+        };
+
+        const fullSourcePath = resolvePath(sourceImage);
+
+        // 2. Verify Original File Exists
         try {
-            await fs.access(sourceImage);
+            await fs.access(fullSourcePath);
         } catch {
+            console.error(`Model Swap API: Source file not found at ${fullSourcePath}`);
             return NextResponse.json({ error: "Source file not found" }, { status: 404 });
         }
 
-        // 2. Determine Output Path
+        // 3. Determine Output Path
         const filename = path.basename(sourceImage, path.extname(sourceImage));
-        const resultsDir = determineResultsDir(sourceImage);
+        const resolvedResultsDir = determineResultsDir(fullSourcePath);
 
-        const outputPath = await getUniqueFilename(resultsDir, filename, ".png");
+        const fullOutputPath = await getUniqueFilename(resolvedResultsDir, filename, ".png");
 
-        // 3. Prepare Inputs
-        const sourceBase64 = await fileToBase64(sourceImage);
+        // 4. Prepare Inputs
+        const sourceBase64 = await fileToBase64(fullSourcePath);
         let faceBase64 = undefined;
         if (faceReference) {
-            faceBase64 = await fileToBase64(faceReference);
+            const fullFacePath = resolvePath(faceReference);
+            faceBase64 = await fileToBase64(fullFacePath);
         }
 
         // 4. Call Fashn.ai API
@@ -73,32 +107,39 @@ export async function POST(req: Request) {
         const imageRes = await fetch(outputUrl);
         const arrayBuffer = await imageRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        await fs.writeFile(outputPath, buffer);
+        await fs.mkdir(path.dirname(fullOutputPath), { recursive: true });
+        await fs.writeFile(fullOutputPath, buffer);
 
-        // 6. Record Job in DB
-        const user = await getCurrentUser();
-        await prisma.job.create({
+        // 6. Update Job in DB
+        const relativeOutputPath = path.relative(basePath, fullOutputPath).replace(/\\/g, "/");
+
+        await prisma.job.update({
+            where: { id: dbJobId },
             data: {
-                userId: user.id,
                 status: "COMPLETED",
-                inputParams: JSON.stringify({
-                    type: "model-swap",
-                    prompt,
-                    source: sourceImage,
-                    faceReference: faceReference || "none"
-                }),
-                outputPaths: JSON.stringify([outputPath]),
+                outputPaths: JSON.stringify([relativeOutputPath]),
             }
         });
 
         return NextResponse.json({
             success: true,
-            path: outputPath,
-            filename: path.basename(outputPath)
+            path: relativeOutputPath,
+            filename: path.basename(fullOutputPath)
         });
 
     } catch (error: any) {
         console.error("Model Swap API Error:", error);
+        if (dbJobId) {
+            try {
+                await prisma.job.update({
+                    where: { id: dbJobId },
+                    data: {
+                        status: "FAILED",
+                        error: error.message || "Unknown error"
+                    }
+                });
+            } catch (e) { }
+        }
         return NextResponse.json({ error: error.message || "Failed to process swap" }, { status: 500 });
     }
 }

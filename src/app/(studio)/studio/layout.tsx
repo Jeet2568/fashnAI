@@ -1,10 +1,18 @@
 import { StudioSidebar } from "@/components/studio-sidebar";
+import { getCurrentUser } from "@/lib/current-user";
+import { redirect } from "next/navigation";
 
-export default function StudioLayout({
+export default async function StudioLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const user = await getCurrentUser();
+
+    if (!user) {
+        redirect("/");
+    }
+
     return (
         <div className="flex h-screen overflow-hidden bg-background">
             <StudioSidebar />

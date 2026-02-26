@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/current-user";
 
 const createUserSchema = z.object({
     username: z.string().min(3),
@@ -19,13 +20,12 @@ const updateUserSchema = z.object({
 });
 
 export async function GET() {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const users = await prisma.user.findMany({
-            where: {
-                role: {
-                    not: "SUPER_ADMIN"
-                }
-            },
+            where: {},
             orderBy: { createdAt: "desc" },
             select: {
                 id: true,
@@ -45,6 +45,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const body = await req.json();
         const { username, password, role, credits } = createUserSchema.parse(body);
@@ -94,6 +97,9 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const body = await req.json();
         const { id, username, password, role } = updateUserSchema.parse(body);
@@ -141,6 +147,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");

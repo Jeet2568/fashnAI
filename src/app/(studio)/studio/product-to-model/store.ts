@@ -31,7 +31,7 @@ interface TryOnState {
     creativity: number;
     resemblance: number;
     structureMatch: number;
-    quality: "precise" | "balanced" | "creative";
+    quality: "hd" | "precise" | "balanced" | "creative";
 
     // Advanced
     seed: string;
@@ -83,7 +83,7 @@ export const useTryOnStore = create<TryOnState>((set) => ({
     creativity: 0.7,
     resemblance: 0.9,
     structureMatch: 0.9,
-    quality: "balanced",
+    quality: "hd",
 
     seed: "",
     num_inference_steps: 30,
@@ -133,7 +133,7 @@ export const useTryOnStore = create<TryOnState>((set) => ({
         creativity: 0.7,
         resemblance: 0.9,
         structureMatch: 0.9,
-        quality: "balanced",
+        quality: "hd",
         seed: "",
         num_inference_steps: 30,
         guidance_scale: 2.5,

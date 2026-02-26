@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FileExplorer } from "@/components/file-explorer";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import Image from "next/image";
 
 function ProductFilesContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const path = searchParams.get("path");
     const { setSelectedFolder } = useStore();
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     useEffect(() => {
         if (path) {
@@ -40,14 +43,37 @@ function ProductFilesContent() {
                 </div>
             </div>
 
-            <div className="flex-1 border rounded-lg overflow-hidden bg-background">
+            <div className="flex-1 overflow-hidden">
                 <FileExplorer
                     key={path || "fs-root"}
-                    variant="split"
                     initialPath={path || ""}
+                    rootPath={path || ""}
                     onSelectFolder={(path) => setSelectedFolder(path)}
+                    onSelectFile={(file) => setPreviewImage(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`)}
+                    folderCardSize="large"
+                    defaultView="grid"
+                    allowCRUD={true}
+                    className="h-full border-none shadow-none"
                 />
             </div>
+
+            {/* Image Preview Modal */}
+            <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+                <DialogContent showCloseButton={false} className="max-w-[90vw] max-h-[90vh] p-1 bg-transparent border-none shadow-none flex items-center justify-center">
+                    <DialogTitle className="sr-only">Image Preview</DialogTitle>
+                    {previewImage && (
+                        <div className="relative w-full h-[85vh]">
+                            <Image
+                                src={previewImage}
+                                alt="Preview"
+                                fill
+                                className="object-contain"
+                                unoptimized
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

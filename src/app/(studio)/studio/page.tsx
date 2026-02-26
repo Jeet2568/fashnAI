@@ -12,6 +12,10 @@ import Image from "next/image";
 import { NotificationMarquee } from "@/components/dashboard/NotificationMarquee";
 import { StatsRow } from "@/components/dashboard/StatsRow";
 import { useStore } from "@/lib/store";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import Link from "next/link";
+import { Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface FileEntry {
     name: string;
@@ -24,6 +28,7 @@ export default function StudioPage() {
     const [selectedFolderPath, setSelectedFolderPath] = useState(selectedFolder || "");
     const [assets, setAssets] = useState<FileEntry[]>([]);
     const [loadingAssets, setLoadingAssets] = useState(false);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     const fetchAssets = async () => {
         setLoadingAssets(true);
@@ -130,7 +135,7 @@ export default function StudioPage() {
                                     <div
                                         key={file.path}
                                         className="group relative aspect-[3/4] bg-muted rounded-md overflow-hidden border hover:border-primary transition-all cursor-pointer shadow-sm"
-                                        onClick={() => window.open(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`, '_blank')}
+                                        onClick={() => setPreviewImage(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`)}
                                     >
                                         <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Button variant="destructive" size="icon" className="h-6 w-6" onClick={(e) => handleDelete(file.path, e)}>
@@ -153,6 +158,24 @@ export default function StudioPage() {
                     </ScrollArea>
                 </Card>
             </div>
+
+            {/* Image Preview Modal */}
+            <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+                <DialogContent showCloseButton={false} className="max-w-[90vw] max-h-[90vh] p-1 bg-transparent border-none shadow-none flex items-center justify-center">
+                    <DialogTitle className="sr-only">Image Preview</DialogTitle>
+                    {previewImage && (
+                        <div className="relative w-full h-[85vh]">
+                            <Image
+                                src={previewImage}
+                                alt="Preview"
+                                fill
+                                className="object-contain"
+                                unoptimized
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

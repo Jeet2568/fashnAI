@@ -23,6 +23,7 @@ export async function login(username: string, password: string) {
 
     const cookieStore = await cookies();
     cookieStore.set("userId", user.id);
+    cookieStore.set("userRole", user.role);
 
     return { success: true, role: user.role };
 }
@@ -30,5 +31,6 @@ export async function login(username: string, password: string) {
 export async function logout() {
     const cookieStore = await cookies();
     cookieStore.delete("userId");
+    cookieStore.delete("userRole");
     return { success: true };
 }

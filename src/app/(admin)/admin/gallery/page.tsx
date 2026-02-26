@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { FolderIcon, Plus, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
@@ -24,6 +24,7 @@ export default function AdminGalleryPage() {
     const [loadingAssets, setLoadingAssets] = useState(false);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [newFolderName, setNewFolderName] = useState("");
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     // File Operation State
     const [isSelectMode, setIsSelectMode] = useState(false);
@@ -153,7 +154,7 @@ export default function AdminGalleryPage() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] p-6 space-y-4">
+        <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] p-6 space-y-4 overflow-hidden">
             {/* Top Bar: Breadcrumbs & Actions */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
 
@@ -223,6 +224,7 @@ export default function AdminGalleryPage() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
+                            <DialogTitle className="sr-only">Create New Folder</DialogTitle>
                             <DialogHeader>
                                 <DialogTitle>Create New Folder</DialogTitle>
                             </DialogHeader>
@@ -246,31 +248,33 @@ export default function AdminGalleryPage() {
             <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
 
                 {/* Left: Folder Tree Explorer */}
-                <Card className="w-1/3 min-w-[250px] max-w-[350px] flex flex-col overflow-hidden shadow-sm">
+                <Card className="w-1/3 min-w-[250px] max-w-[350px] flex flex-col min-h-0 overflow-hidden shadow-sm">
                     <div className="p-4 border-b bg-muted/20">
                         <h3 className="font-semibold flex items-center gap-2 text-sm">
                             <FolderIcon className="w-5 h-5 text-muted-foreground shrink-0" />
                             File Explorer
                         </h3>
                     </div>
-                    <ScrollArea className="flex-1 p-2">
-                        <FolderTree
-                            path=""
-                            onSelect={setSelectedFolderPath}
-                            selectedPath={selectedFolderPath}
-                        />
+                    <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-2 min-w-fit">
+                            <FolderTree
+                                path=""
+                                onSelect={setSelectedFolderPath}
+                                selectedPath={selectedFolderPath}
+                            />
+                        </div>
                     </ScrollArea>
                 </Card>
 
                 {/* Right: Content Grid */}
-                <Card className="flex-1 flex flex-col overflow-hidden shadow-sm bg-muted/10">
+                <Card className="flex-1 flex flex-col min-h-0 overflow-hidden shadow-sm bg-muted/10">
                     <div className="p-4 border-b flex items-center justify-between bg-background/50">
                         <span className="text-sm font-medium text-muted-foreground flex items-center">
                             {assets.filter(a => !a.isDirectory).length} images in current folder
                         </span>
                     </div>
 
-                    <ScrollArea className="flex-1 p-4">
+                    <ScrollArea className="flex-1 min-h-0 p-4">
                         {loadingAssets ? (
                             <div className="h-full flex items-center justify-center p-8">
                                 <span className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -299,7 +303,7 @@ export default function AdminGalleryPage() {
                                                     else newSet.add(file.path);
                                                     setSelectedItems(newSet);
                                                 } else {
-                                                    window.open(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`, '_blank');
+                                                    setPreviewImage(`/api/filesystem/image?path=${encodeURIComponent(file.path)}`);
                                                 }
                                             }}
                                         >
@@ -335,6 +339,24 @@ export default function AdminGalleryPage() {
                     </ScrollArea>
                 </Card>
             </div>
+
+            {/* Image Preview Modal */}
+            <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+                <DialogContent showCloseButton={false} className="max-w-[90vw] max-h-[90vh] p-1 bg-transparent border-none shadow-none flex items-center justify-center">
+                    <DialogTitle className="sr-only">Image Preview</DialogTitle>
+                    {previewImage && (
+                        <div className="relative w-full h-[85vh]">
+                            <Image
+                                src={previewImage}
+                                alt="Preview"
+                                fill
+                                className="object-contain"
+                                unoptimized
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

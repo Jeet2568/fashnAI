@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { login } from "@/app/actions";
@@ -43,7 +43,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FDFBF7]">
+    <div className="flex min-h-screen bg-background">
       {/* Left Side - Brand/Visual */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 bg-zinc-950 p-12 text-white relative overflow-hidden">
         {/* Decorative Elements */}
@@ -61,7 +61,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 max-w-xl">
           <h2 className="text-4xl lg:text-5xl font-bold tracking-tight mb-6 leading-tight">
-            Create stunning <br className="hidden lg:block" /> fashion imagery.
+            Create stunning <br className="hidden lg:block" /> stunning imagery.
           </h2>
           <p className="text-zinc-400 text-lg">
             Log in to access your models, manage studio assets, and generate professional-grade AI visuals.

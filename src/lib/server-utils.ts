@@ -7,16 +7,22 @@ export function determineResultsDir(sourceFilePath: string): string {
     const parts = dir.split(/[/\\]/);
 
     const rawIndex = parts.findIndex(part => part.toUpperCase() === "RAW");
+    const resultsIndex = parts.findIndex(part => part.toUpperCase() === "RESULTS");
 
     if (rawIndex !== -1) {
-        // Replace RAW with Results to mirror structure (e.g. RAW/01 -> Results/01)
-        parts[rawIndex] = "Results";
-        // Rejoin using the system-specific separator
-        return parts.join(path.sep);
+        // Find the RAW folder and replace it with Results, but stop there (flatten subfolders)
+        // e.g. A/B/RAW/Sub/file.jpg -> A/B/Results
+        const baseParts = parts.slice(0, rawIndex);
+        return [...baseParts, "Results"].join("/");
     }
 
-    // Fallback: Create Results folder in current directory if RAW not found
-    return path.join(dir, "Results");
+    if (resultsIndex !== -1) {
+        // Already in a Results folder, don't nest further
+        return dir.replace(/\\/g, "/");
+    }
+
+    // Fallback: Create Results folder in current directory if RAW or Results not found
+    return path.join(dir, "Results").replace(/\\/g, "/");
 }
 
 export async function fileToBase64(filePath: string): Promise<string> {

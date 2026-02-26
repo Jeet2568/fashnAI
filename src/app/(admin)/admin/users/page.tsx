@@ -34,7 +34,7 @@ import { Plus, Loader2, Save, Trash2, X } from "lucide-react";
 interface User {
     id: string;
     username: string;
-    role: "ADMIN" | "USER";
+    role: "ADMIN" | "USER" | "SUPER_ADMIN";
     credits: number;
     createdAt: string;
 }
@@ -197,6 +197,7 @@ export default function UsersPage() {
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
+                        <DialogTitle className="sr-only">Add New User</DialogTitle>
                         <DialogHeader>
                             <DialogTitle>Add New User</DialogTitle>
                             <DialogDescription>
@@ -242,6 +243,7 @@ export default function UsersPage() {
                                     <SelectContent>
                                         <SelectItem value="USER">User</SelectItem>
                                         <SelectItem value="ADMIN">Admin</SelectItem>
+                                        <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -334,13 +336,16 @@ export default function UsersPage() {
                                                         <SelectContent>
                                                             <SelectItem value="USER">User</SelectItem>
                                                             <SelectItem value="ADMIN">Admin</SelectItem>
+                                                            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                 ) : (
                                                     <span
-                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${user.role === "ADMIN"
-                                                            ? "bg-indigo-50 text-indigo-700 ring-indigo-600/20"
-                                                            : "bg-zinc-50 text-zinc-700 ring-zinc-600/20"
+                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${user.role === "SUPER_ADMIN"
+                                                            ? "bg-purple-50 text-purple-700 ring-purple-600/20"
+                                                            : user.role === "ADMIN"
+                                                                ? "bg-indigo-50 text-indigo-700 ring-indigo-600/20"
+                                                                : "bg-zinc-50 text-zinc-700 ring-zinc-600/20"
                                                             }`}
                                                     >
                                                         {user.role}

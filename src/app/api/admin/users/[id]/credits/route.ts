@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/current-user";
 
 const updateCreditSchema = z.object({
-    amount: z.number().int(), // positive to add, negative to remove
+    amount: z.number().int(),
     reason: z.string().min(3),
 });
 
@@ -11,22 +12,20 @@ export async function POST(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const { id } = await params;
         const body = await req.json();
         const { amount, reason } = updateCreditSchema.parse(body);
 
-        // Transaction: Update user credits and create log
         const result = await prisma.$transaction(async (tx) => {
             const user = await tx.user.findUnique({ where: { id } });
-            if (!user) {
-                throw new Error("User not found");
-            }
+            if (!user) throw new Error("User not found");
 
             const newBalance = user.credits + amount;
-            if (newBalance < 0) {
-                throw new Error("Insufficient credits");
-            }
+            if (newBalance < 0) throw new Error("Insufficient credits");
 
             const updatedUser = await tx.user.update({
                 where: { id },
@@ -34,11 +33,7 @@ export async function POST(
             });
 
             await tx.creditLog.create({
-                data: {
-                    userId: id,
-                    amount,
-                    reason,
-                },
+                data: { userId: id, amount, reason },
             });
 
             return updatedUser;
@@ -47,7 +42,7 @@ export async function POST(
         return NextResponse.json(result);
     } catch (error: any) {
         if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: (error as any).errors }, { status: 400 });
+            return NextResponse.json({ error: (error as z.ZodError).issues }, { status: 400 });
         }
         return NextResponse.json(
             { error: error.message || "Failed to update credits" },
@@ -60,6 +55,9 @@ export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const { id } = await params;
         const logs = await prisma.creditLog.findMany({

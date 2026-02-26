@@ -37,7 +37,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { FileExplorer } from "@/components/file-explorer";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 // Fix Import Path:
 import { useTryOnStore } from "@/app/(studio)/studio/product-to-model/store";
 
@@ -329,6 +329,7 @@ function EditorContent() {
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0">
+                                        <DialogTitle className="sr-only">Select Image</DialogTitle>
                                         <div className="p-4 border-b">
                                             <h2 className="text-lg font-bold">Select Image</h2>
                                         </div>
@@ -338,6 +339,7 @@ function EditorContent() {
                                                 onSelectFolder={() => { }}
                                                 defaultView="grid"
                                                 className="h-full bg-background border"
+                                                syncStore={false}
                                             />
                                         </div>
                                     </DialogContent>

@@ -19,31 +19,35 @@ export async function getDashboardStats() {
             }
         });
 
-        // Today's total jobs
-        // We consider any job created today
-        const todayCount = await prisma.job.count({
+        const todayJobs = await prisma.job.findMany({
             where: {
                 userId: user.id,
                 createdAt: { gte: startOfDay }
-            }
+            },
+            select: { status: true, inputParams: true }
         });
 
-        // Today's successful jobs
-        const successCount = await prisma.job.count({
-            where: {
-                userId: user.id,
-                status: "COMPLETED",
-                createdAt: { gte: startOfDay }
-            }
-        });
+        let todayCount = 0;
+        let successCount = 0;
+        let failCount = 0;
 
-        // Today's failed jobs
-        const failCount = await prisma.job.count({
-            where: {
-                userId: user.id,
-                status: { in: ["FAILED", "CANCELED"] },
-                createdAt: { gte: startOfDay }
-            }
+        todayJobs.forEach(job => {
+            let usage = 1;
+            try {
+                const params = JSON.parse(job.inputParams);
+                if (params.type === "product-to-model" && params.prompts) {
+                    const promptsArr = typeof params.prompts === 'string' ? JSON.parse(params.prompts) : params.prompts;
+                    if (Array.isArray(promptsArr)) usage = promptsArr.length || 1;
+                } else if (params.options?.num_samples) {
+                    usage = Number(params.options.num_samples);
+                } else if (params.num_samples) {
+                    usage = Number(params.num_samples);
+                }
+            } catch (e) { }
+
+            todayCount += usage;
+            if (job.status === "COMPLETED") successCount += usage;
+            if (job.status === "FAILED" || job.status === "CANCELED") failCount += usage;
         });
 
         return {

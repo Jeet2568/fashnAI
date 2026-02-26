@@ -30,24 +30,35 @@ export async function getAdminDashboardStats() {
             where: { status: { in: ["PENDING", "PROCESSING", "STARTING"] } }
         });
 
-        // 3. Total Requests This Month
-        const reqThisMonth = await prisma.job.count({
-            where: { createdAt: { gte: startOfMonth } }
+        // 3. & 4. Total Requests & Success Rate This Month
+        const monthJobs = await prisma.job.findMany({
+            where: { createdAt: { gte: startOfMonth } },
+            select: { status: true, inputParams: true }
         });
 
-        // 4. Success Rate This Month
-        const completedThisMonth = await prisma.job.count({
-            where: {
-                createdAt: { gte: startOfMonth },
-                status: "COMPLETED"
-            }
+        let reqThisMonth = 0;
+        let completedThisMonth = 0;
+        let failedThisMonth = 0;
+
+        monthJobs.forEach(job => {
+            let usage = 1;
+            try {
+                const params = JSON.parse(job.inputParams);
+                if (params.type === "product-to-model" && params.prompts) {
+                    const promptsArr = typeof params.prompts === 'string' ? JSON.parse(params.prompts) : params.prompts;
+                    if (Array.isArray(promptsArr)) usage = promptsArr.length || 1;
+                } else if (params.options?.num_samples) {
+                    usage = Number(params.options.num_samples);
+                } else if (params.num_samples) {
+                    usage = Number(params.num_samples);
+                }
+            } catch (e) { }
+
+            reqThisMonth += usage;
+            if (job.status === "COMPLETED") completedThisMonth += usage;
+            if (job.status === "FAILED" || job.status === "CANCELED") failedThisMonth += usage;
         });
-        const failedThisMonth = await prisma.job.count({
-            where: {
-                createdAt: { gte: startOfMonth },
-                status: { in: ["FAILED", "CANCELED"] }
-            }
-        });
+
         const totalFinishedThisMonth = completedThisMonth + failedThisMonth;
         let successRate = 0;
         if (totalFinishedThisMonth > 0) {
@@ -64,17 +75,31 @@ export async function getAdminDashboardStats() {
         });
         const activeUsers = activeUsersTodayList.length;
 
-        // 6. Today Processed
-        const todayProcessed = await prisma.job.count({
-            where: { createdAt: { gte: startOfDay } }
+        // 6. & 7. Today Processed and Failed
+        const todayJobs = await prisma.job.findMany({
+            where: { createdAt: { gte: startOfDay } },
+            select: { status: true, inputParams: true }
         });
 
-        // 7. Today Failed
-        const todayFailed = await prisma.job.count({
-            where: {
-                createdAt: { gte: startOfDay },
-                status: { in: ["FAILED", "CANCELED"] }
-            }
+        let todayProcessed = 0;
+        let todayFailed = 0;
+
+        todayJobs.forEach(job => {
+            let usage = 1;
+            try {
+                const params = JSON.parse(job.inputParams);
+                if (params.type === "product-to-model" && params.prompts) {
+                    const promptsArr = typeof params.prompts === 'string' ? JSON.parse(params.prompts) : params.prompts;
+                    if (Array.isArray(promptsArr)) usage = promptsArr.length || 1;
+                } else if (params.options?.num_samples) {
+                    usage = Number(params.options.num_samples);
+                } else if (params.num_samples) {
+                    usage = Number(params.num_samples);
+                }
+            } catch (e) { }
+
+            todayProcessed += usage;
+            if (job.status === "FAILED" || job.status === "CANCELED") todayFailed += usage;
         });
 
         // 8. Queue List (Recent active/pending jobs)

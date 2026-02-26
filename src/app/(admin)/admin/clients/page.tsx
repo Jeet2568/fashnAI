@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -40,9 +40,9 @@ function ClientListContent() {
                 }
             } else {
                 // List Mode: Scan for clients deep in structure
-                // Root is fixed to CodeVeda AI for now, or we can scan from root?
-                // User said "CodeVeda AI is organisation". So clients are INSIDE it.
-                // Structure: CodeVeda AI (0) -> Month (1) -> Date (2) -> Client (3)
+                // Root is fixed to Studio AI for now, or we can scan from root?
+                // User said "Studio AI is organisation". So clients are INSIDE it.
+                // Structure: Studio AI (0) -> Month (1) -> Date (2) -> Client (3)
                 // So we want depth 3 from "CodeVeda AI".
                 const res = await fetch(`/api/filesystem/scan?root=CodeVeda%20AI&depth=3`);
                 if (res.ok) {
@@ -70,8 +70,8 @@ function ClientListContent() {
         try {
             // Ideally create in specific date folder?
             // If in List Mode, WHERE do we create?
-            // Maybe just default to: CodeVeda AI / CurrentMonth / Today / NewClient?
-            // For now, let's create in Root (CodeVeda AI) if in list mode? No, that breaks structure.
+            // Maybe just default to: Studio AI / CurrentMonth / Today / NewClient?
+            // For now, let's create in Root (Studio AI) if in list mode? No, that breaks structure.
             // Let's create in "CodeVeda AI" root if list mode, or current path if browser.
             // Actually, user probably wants to create in TODAY'S folder.
 
@@ -169,6 +169,7 @@ function ClientListContent() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
+                            <DialogTitle className="sr-only">Add New Client</DialogTitle>
                             <DialogHeader>
                                 <DialogTitle>Add New Client</DialogTitle>
                             </DialogHeader>

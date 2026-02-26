@@ -22,9 +22,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Loader2, ScanFace } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PlusCircle, Search, Loader2, ScanFace, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { ResourceCard } from "@/components/admin/ResourceCard";
+import { cn } from "@/lib/utils";
 
 interface Resource {
   id: string;
@@ -42,6 +49,11 @@ export default function ResourcesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  // Edit State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<Resource | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     fetchResources();
@@ -97,56 +109,48 @@ export default function ResourcesPage() {
     return matchesSearch && matchesCategory;
   });
 
+  const handleEditClick = (resource: Resource) => {
+    setEditingResource({ ...resource });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingResource) return;
+
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/resources", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingResource),
+      });
+
+      if (!res.ok) throw new Error("Failed to update");
+
+      toast.success("Resource updated successfully");
+      setIsEditModalOpen(false);
+      fetchResources();
+    } catch (error) {
+      toast.error("Failed to update resource");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const mainCategories = categories.filter(c => !["earrings", "necklace", "bracelet", "rings", "shoes", "watch", "handbag"].includes(c));
+  const accessoryCategories = categories.filter(c => ["earrings", "necklace", "bracelet", "rings", "shoes", "watch", "handbag"].includes(c));
+
   return (
     <div className="p-6 space-y-6 flex flex-col h-full bg-background">
       {/* Header & Controls */}
       <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Resources</h1>
-          <p className="text-muted-foreground">
-            Manage prompts and presets for the Studio.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
-            {/* Category Filter */}
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-[180px] bg-background">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="model" className="font-semibold text-indigo-600">Models</SelectItem>
-                {categories.map(c => (
-                  <SelectItem key={c} value={c} className="capitalize">
-                    {c.replace(/_/g, " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Search */}
-            <Button
-              variant={selectedCategory === "model" ? "default" : "outline"}
-              className="px-3 gap-2"
-              onClick={() => setSelectedCategory(selectedCategory === "model" ? "all" : "model")}
-            >
-              <ScanFace className="h-4 w-4" />
-              Models
-            </Button>
-
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search resources..."
-                className="pl-9 bg-background"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Resources</h1>
+            <p className="text-muted-foreground">
+              Manage prompts and presets for the Studio.
+            </p>
           </div>
-
           <Button
             className="gap-2 shrink-0"
             onClick={() => router.push("/admin/resources/add")}
@@ -155,7 +159,146 @@ export default function ResourcesPage() {
             Add New Resource
           </Button>
         </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar w-full">
+            <Button
+              variant={selectedCategory === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategory("all")}
+              className="rounded-full shrink-0"
+            >
+              All
+            </Button>
+            <Button
+              variant={selectedCategory === "model" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategory("model")}
+              className="rounded-full shrink-0 gap-2"
+            >
+              <ScanFace className="h-3.5 w-3.5" />
+              Models
+            </Button>
+            {mainCategories.map(cat => (
+              <Button
+                key={cat}
+                variant={selectedCategory === cat ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategory(cat)}
+                className="rounded-full capitalize whitespace-nowrap shrink-0"
+              >
+                {cat.replace(/_/g, " ")}
+              </Button>
+            ))}
+
+            {accessoryCategories.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "rounded-full capitalize whitespace-nowrap shrink-0",
+                      accessoryCategories.includes(selectedCategory) && "bg-primary text-primary-foreground hover:bg-primary/90"
+                    )}
+                  >
+                    {accessoryCategories.includes(selectedCategory) ? selectedCategory.replace(/_/g, " ") : "Accessories"}
+                    <ChevronDown className="ml-2 h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[160px]">
+                  {accessoryCategories.map(cat => (
+                    <DropdownMenuItem
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={cn("cursor-pointer capitalize", selectedCategory === cat && "bg-zinc-100 font-medium")}
+                    >
+                      {cat.replace(/_/g, " ")}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <div className="ml-auto w-full sm:w-auto relative flex-1 sm:max-w-xs shrink-0">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search resources..."
+                className="pl-9 h-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Edit Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Resource</DialogTitle>
+            <DialogDescription>
+              Update the details for this studio resource.
+            </DialogDescription>
+          </DialogHeader>
+          {editingResource && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editingResource.name}
+                  onChange={(e) => setEditingResource({ ...editingResource, name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select
+                  value={editingResource.type}
+                  onValueChange={(val) => setEditingResource({ ...editingResource, type: val })}
+                >
+                  <SelectTrigger id="edit-category">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="model" className="font-semibold text-indigo-600">Model</SelectItem>
+                    {categories.map(c => (
+                      <SelectItem key={`edit-${c}`} value={c} className="capitalize">{c.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-thumbnail">Thumbnail URL (Optional)</Label>
+                <Input
+                  id="edit-thumbnail"
+                  value={editingResource.thumbnail || ""}
+                  onChange={(e) => setEditingResource({ ...editingResource, thumbnail: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-prompt">Generation Prompt</Label>
+                <Textarea
+                  id="edit-prompt"
+                  rows={4}
+                  value={editingResource.prompt}
+                  onChange={(e) => setEditingResource({ ...editingResource, prompt: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Main Content: Card List */}
       <div className="flex-1 overflow-y-auto">
@@ -169,6 +312,7 @@ export default function ResourcesPage() {
               <ResourceCard
                 key={resource.id}
                 resource={resource}
+                onEdit={handleEditClick}
                 onDelete={handleDelete}
               />
             ))}

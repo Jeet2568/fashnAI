@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import fs from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { getSetting, SETTINGS_KEYS } from "@/lib/settings";
+import { requireUser } from "@/lib/current-user";
 
 const createProjectSchema = z.object({
     clientName: z.string().optional(),
@@ -28,6 +29,9 @@ function formatMonthMMYYYY(date: Date) {
 }
 
 export async function POST(req: Request) {
+    const auth = await requireUser();
+    if ("error" in auth) return auth.error;
+
     try {
         const body = await req.json();
         const { clientName, productName, clientId, date } = createProjectSchema.parse(body);
@@ -81,7 +85,7 @@ export async function POST(req: Request) {
         const productSerialStr = String(productSerial).padStart(2, '0');
         const productSlug = `${productSerialStr}_${productName}`;
 
-        // 4. Construct Path: CodeVeda AI / MM-YYYY / DD-MM-YYYY / ClientSlug / ProductSlug
+        // 4. Construct Path: Studio AI / MM-YYYY / DD-MM-YYYY / ClientSlug / ProductSlug
         const monthDir = formatMonthMMYYYY(sessionDate);
         const dateDir = formatDateDDMMYYYY(sessionDate);
 

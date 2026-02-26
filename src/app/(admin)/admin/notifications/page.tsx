@@ -9,9 +9,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, Trash2, Send } from "lucide-react";
+import { Loader2, Trash2, Send, Megaphone, Save, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface User {
@@ -38,6 +39,11 @@ export default function NotificationsPage() {
     const [message, setMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
 
+    // Marquee State
+    const [marqueeMessages, setMarqueeMessages] = useState<string[]>([]);
+    const [isSavingMarquee, setIsSavingMarquee] = useState(false);
+    const [newMarqueeText, setNewMarqueeText] = useState("");
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -57,6 +63,16 @@ export default function NotificationsPage() {
             if (notifRes.ok) {
                 const notifData = await notifRes.json();
                 setNotifications(notifData);
+            }
+
+            const settingsRes = await fetch("/api/settings");
+            if (settingsRes.ok) {
+                const settingsData = await settingsRes.json();
+                if (settingsData.marquee_messages) {
+                    setMarqueeMessages(settingsData.marquee_messages);
+                } else if (settingsData.marquee_text) {
+                    setMarqueeMessages([settingsData.marquee_text]);
+                }
             }
         } catch (error) {
             toast.error("Failed to load data");
@@ -120,25 +136,115 @@ export default function NotificationsPage() {
         toast.info("Draft cleared");
     }
 
+    const handleSaveMarquee = async (updatedMessages: string[]) => {
+        setIsSavingMarquee(true);
+        try {
+            const res = await fetch("/api/admin/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ globalMarquee: JSON.stringify(updatedMessages) }),
+            });
+
+            if (!res.ok) throw new Error("Failed to save marquee");
+            setMarqueeMessages(updatedMessages);
+            toast.success("Marquee list updated");
+        } catch (error) {
+            toast.error("Failed to update marquee");
+        } finally {
+            setIsSavingMarquee(false);
+        }
+    };
+
+    const addMarqueeMessage = () => {
+        if (!newMarqueeText.trim()) return;
+        handleSaveMarquee([...marqueeMessages, newMarqueeText.trim()]);
+        setNewMarqueeText("");
+    };
+
+    const removeMarqueeMessage = (index: number) => {
+        const updated = marqueeMessages.filter((_, i) => i !== index);
+        handleSaveMarquee(updated);
+    };
+
     return (
         <div className="space-y-6 h-full flex flex-col p-6 bg-zinc-50/50">
             <div className="flex items-center justify-between shrink-0">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Notifications</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">Communications</h2>
                     <p className="text-muted-foreground">
-                        Send alerts and messages to users.
+                        Manage global marquee and individual user notifications.
                     </p>
+                </div>
+            </div>
+
+            {/* Marquee Section */}
+            <div className="rounded-xl border border-indigo-100 bg-white shadow-sm p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-indigo-100 p-2 rounded-lg">
+                            <Megaphone className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-lg">Global Marquee Messages</h3>
+                            <p className="text-xs text-muted-foreground font-medium">Add or remove messages scrolling on user dashboards</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex gap-2">
+                    <Input
+                        placeholder="Add a new scrolling message..."
+                        className="flex-1 border-indigo-50 focus-visible:ring-indigo-500"
+                        value={newMarqueeText}
+                        onChange={(e) => setNewMarqueeText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && addMarqueeMessage()}
+                    />
+                    <Button
+                        className="bg-indigo-600 hover:bg-indigo-700 gap-2 shrink-0"
+                        onClick={addMarqueeMessage}
+                        disabled={isSavingMarquee || !newMarqueeText.trim()}
+                    >
+                        {isSavingMarquee ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Add Message
+                    </Button>
+                </div>
+
+                <div className="space-y-2">
+                    {marqueeMessages.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-muted-foreground bg-zinc-50 rounded-lg border border-dashed">
+                            No active marquee messages.
+                        </div>
+                    ) : (
+                        marqueeMessages.map((msg, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-3 bg-indigo-50/30 border border-indigo-100/50 rounded-lg group">
+                                <span className="text-sm font-medium text-indigo-900">{msg}</span>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-indigo-400 hover:text-red-500 hover:bg-red-50"
+                                    onClick={() => removeMarqueeMessage(idx)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
             {/* Compose Section */}
             <div className="rounded-xl border bg-white shadow-sm p-6 space-y-4">
                 <div className="flex items-center justify-between gap-4">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <Send className="h-4 w-4 text-primary" />
+                        Send Direct Notification
+                    </h3>
                     <Select value={selectedUser} onValueChange={setSelectedUser}>
                         <SelectTrigger className="w-[250px]">
                             <SelectValue placeholder="Select User" />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="ALL" className="font-bold text-indigo-600">All Users (Broadcast)</SelectItem>
                             {users.map(u => (
                                 <SelectItem key={u.id} value={u.id}>{u.username}</SelectItem>
                             ))}

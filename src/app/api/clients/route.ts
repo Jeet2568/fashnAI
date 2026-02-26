@@ -1,8 +1,12 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/current-user";
 
 export async function GET() {
+    const auth = await requireUser();
+    if ("error" in auth) return auth.error;
+
     try {
         const clients = await prisma.client.findMany({
             orderBy: { name: 'asc' },

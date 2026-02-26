@@ -19,7 +19,8 @@ import {
     Loader2,
     Crop,
     Scissors,
-    RefreshCw
+    RefreshCw,
+    User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { FileExplorer } from "@/components/file-explorer";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { useTryOnStore } from "../product-to-model/store";
 
 function EditorContent() {
@@ -61,6 +62,8 @@ function EditorContent() {
     // Navigation State
     const [activeTab, setActiveTab] = useState("edit");
     const [showGalleryDialog, setShowGalleryDialog] = useState(false);
+    const [faceReferencePath, setFaceReferencePath] = useState<string | null>(null);
+    const [showFaceGalleryDialog, setShowFaceGalleryDialog] = useState(false);
 
     // Initial Load
     useEffect(() => {
@@ -136,40 +139,64 @@ function EditorContent() {
 
     // Handlers
     const handleGenerate = async () => {
-        if (!prompt) {
+        if (!imagePath) {
+            toast.error("Please select an image first");
+            return;
+        }
+
+        if (activeTab === "faceswap" && !faceReferencePath) {
+            toast.error("Please select a face reference image");
+            return;
+        }
+
+        if (activeTab === "edit" && !prompt) {
             toast.error("Please describe what to change");
             return;
         }
-        if (!imagePath) return;
 
         setIsProcessing(true);
         const canvas = canvasRef.current;
 
         try {
-            // Get Mask Base64
+            // Get Mask Base64 (Transparent PNG where white is the mask)
             const maskBase64 = canvas?.toDataURL("image/png");
 
-            const res = await fetch("/api/edit", {
+            let endpoint = "/api/edit";
+            let body: any = { imagePath, maskImage: maskBase64, prompt };
+
+            if (activeTab === "faceswap") {
+                endpoint = "/api/model-swap";
+                body = {
+                    sourceImage: imagePath,
+                    faceReference: faceReferencePath,
+                    prompt: prompt || "High quality face swap, matching reference, preserve hair and accessories"
+                };
+            } else if (activeTab === "removebg") {
+                body.prompt = prompt || "Remove background, isolated on pure white background, high quality";
+            } else if (activeTab === "reframe") {
+                body.prompt = prompt || "Reframe image to show full subject and more environmental context, 3:4 aspect ratio";
+            }
+
+            const res = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    imagePath,
-                    maskImage: maskBase64,
-                    prompt
-                })
+                body: JSON.stringify(body)
             });
 
-            if (!res.ok) throw new Error("Edit failed");
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Operation failed");
+            }
 
             const data = await res.json();
 
-            toast.success("Edit Saved to Results!");
+            toast.success("Generation Successful! Result saved to Gallery.");
 
-            // Optionally redirect to the new image or reload
-            // For now, just show success
+            // If we got a result path, we could optionally redirect or preview it
+            // For now, keep user in the editor
 
-        } catch (error) {
-            toast.error("Failed to generate edit");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to process generation");
             console.error(error);
         } finally {
             setIsProcessing(false);
@@ -187,6 +214,12 @@ function EditorContent() {
     const handleGallerySelect = (file: any) => {
         setShowGalleryDialog(false);
         router.push(`/studio/edit?image=${encodeURIComponent(file.path)}`);
+    };
+
+    const handleFaceRefSelect = (file: any) => {
+        setFaceReferencePath(file.path);
+        setShowFaceGalleryDialog(false);
+        toast.info("Face Reference Selected");
     };
 
     return (
@@ -226,46 +259,87 @@ function EditorContent() {
             {/* Toolbar */}
             <div className="px-6 py-2 max-w-4xl mx-auto w-full flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                    <Button
-                        variant={activeTool === "brush" ? "secondary" : "outline"}
-                        size="sm"
-                        className={cn("gap-2", activeTool === "brush" ? "bg-muted text-foreground" : "bg-background border-border text-muted-foreground")}
-                        onClick={() => setActiveTool("brush")}
-                    >
-                        <Brush className="h-4 w-4" /> Brush
-                    </Button>
+                    {activeTab === "edit" ? (
+                        <>
+                            <Button
+                                variant={activeTool === "brush" ? "secondary" : "outline"}
+                                size="sm"
+                                className={cn("gap-2", activeTool === "brush" ? "bg-muted text-foreground" : "bg-background border-border text-muted-foreground")}
+                                onClick={() => setActiveTool("brush")}
+                            >
+                                <Brush className="h-4 w-4" /> Brush
+                            </Button>
 
-                    {activeTool === "brush" && (
-                        <div className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md border border-border">
-                            <span className="text-xs text-muted-foreground font-medium w-8">{brushSize}px</span>
-                            <Slider
-                                value={[brushSize]}
-                                onValueChange={(v) => setBrushSize(v[0])}
-                                max={100}
-                                step={1}
-                                className="w-24"
-                            />
-                        </div>
-                    )}
+                            {activeTool === "brush" && (
+                                <div className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md border border-border">
+                                    <span className="text-xs text-muted-foreground font-medium w-8">{brushSize}px</span>
+                                    <Slider
+                                        value={[brushSize]}
+                                        onValueChange={(v) => setBrushSize(v[0])}
+                                        max={100}
+                                        step={1}
+                                        className="w-24"
+                                    />
+                                </div>
+                            )}
 
-                    <Button
-                        variant={activeTool === "eraser" ? "secondary" : "outline"}
-                        size="icon"
-                        className={cn("h-9 w-9", activeTool === "eraser" ? "bg-muted" : "bg-background border-border text-muted-foreground")}
-                        onClick={() => setActiveTool("eraser")}
-                        title="Eraser"
-                    >
-                        <Eraser className="h-4 w-4" />
-                    </Button>
+                            <Button
+                                variant={activeTool === "eraser" ? "secondary" : "outline"}
+                                size="icon"
+                                className={cn("h-9 w-9", activeTool === "eraser" ? "bg-muted" : "bg-background border-border text-muted-foreground")}
+                                onClick={() => setActiveTool("eraser")}
+                                title="Eraser"
+                            >
+                                <Eraser className="h-4 w-4" />
+                            </Button>
 
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleClearMask}
-                        className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
-                    >
-                        Clear Mask
-                    </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearMask}
+                                className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                            >
+                                Clear Mask
+                            </Button>
+                        </>
+                    ) : activeTab === "faceswap" ? (
+                        <Dialog open={showFaceGalleryDialog} onOpenChange={setShowFaceGalleryDialog}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="gap-2 border-dashed">
+                                    {faceReferencePath ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full overflow-hidden bg-muted">
+                                                <img
+                                                    src={`/api/filesystem/image?path=${encodeURIComponent(faceReferencePath)}`}
+                                                    className="w-full h-full object-cover"
+                                                    alt="Ref"
+                                                />
+                                            </div>
+                                            <span className="max-w-[100px] truncate text-xs">...{faceReferencePath.split(/[\\/]/).pop()}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <User className="h-4 w-4" /> Add Face Ref
+                                        </>
+                                    )}
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0">
+                                <DialogTitle className="sr-only">Select Face Reference</DialogTitle>
+                                <div className="p-4 border-b">
+                                    <h2 className="text-lg font-bold">Select Face Reference</h2>
+                                </div>
+                                <div className="flex-1 overflow-hidden p-4 bg-muted/10">
+                                    <FileExplorer
+                                        onSelectFile={handleFaceRefSelect}
+                                        onSelectFolder={() => { }}
+                                        defaultView="grid"
+                                        className="h-full bg-background border"
+                                    />
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    ) : null}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -280,7 +354,7 @@ function EditorContent() {
                     </Select>
 
                     <Button
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]"
                         onClick={handleGenerate}
                         disabled={isProcessing || !imageLoaded}
                     >
@@ -291,8 +365,14 @@ function EditorContent() {
                             </>
                         ) : (
                             <>
-                                <Wand2 className="h-4 w-4 mr-2" />
-                                Edit (~12s)
+                                {activeTab === "edit" ? <Wand2 className="h-4 w-4 mr-2" /> :
+                                    activeTab === "faceswap" ? <RefreshCw className="h-4 w-4 mr-2" /> :
+                                        activeTab === "removebg" ? <Scissors className="h-4 w-4 mr-2" /> :
+                                            <Crop className="h-4 w-4 mr-2" />}
+                                {activeTab === "edit" ? "Edit (~12s)" :
+                                    activeTab === "faceswap" ? "Face Swap (~15s)" :
+                                        activeTab === "removebg" ? "Remove BG (~8s)" :
+                                            "Reframe (~12s)"}
                             </>
                         )}
                     </Button>
@@ -327,6 +407,7 @@ function EditorContent() {
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0">
+                                        <DialogTitle className="sr-only">Select Image</DialogTitle>
                                         <div className="p-4 border-b">
                                             <h2 className="text-lg font-bold">Select Image</h2>
                                         </div>

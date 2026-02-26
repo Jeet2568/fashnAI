@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ const createNotificationSchema = z.object({
 });
 
 export async function GET() {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const notifications = await prisma.notification.findMany({
             include: {
@@ -34,35 +38,36 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const body = await req.json();
-        console.log("[Notification POST] Body:", body); // Debug Log
-
         const { userId, message } = createNotificationSchema.parse(body);
+        let notification;
 
-        const notification = await prisma.notification.create({
-            data: {
-                userId,
-                message,
-                status: "SENT", // Default status
-            },
-            include: {
-                user: {
-                    select: { username: true }
-                }
-            }
-        });
-
-        console.log("[Notification POST] Created:", notification); // Debug Log
-        return NextResponse.json(notification, { status: 201 });
-    } catch (error: any) {
-        console.error("[Notification POST] Error:", error); // Debug Log
-
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: (error as any).errors }, { status: 400 });
+        if (userId === "ALL") {
+            const allUsers = await prisma.user.findMany({ select: { id: true } });
+            await prisma.notification.createMany({
+                data: allUsers.map(u => ({
+                    userId: u.id,
+                    message,
+                    status: "SENT"
+                }))
+            });
+            notification = { userId: "ALL", message, status: "SENT", user: { username: "ALL USERS" } };
+        } else {
+            notification = await prisma.notification.create({
+                data: { userId, message, status: "SENT" },
+                include: { user: { select: { username: true } } }
+            });
         }
 
-        // Return actual error for debugging
+        return NextResponse.json(notification, { status: 201 });
+    } catch (error: any) {
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: (error as z.ZodError).issues }, { status: 400 });
+        }
         return NextResponse.json(
             { error: error.message || "Failed to send notification" },
             { status: 500 }
@@ -71,21 +76,21 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
         const clearAll = searchParams.get("all");
 
         if (clearAll === "true") {
-            // Delete all notifications
             await prisma.notification.deleteMany({});
             return NextResponse.json({ success: true });
         }
 
         if (id) {
-            await prisma.notification.delete({
-                where: { id },
-            });
+            await prisma.notification.delete({ where: { id } });
             return NextResponse.json({ success: true });
         }
 

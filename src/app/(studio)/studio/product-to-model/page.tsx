@@ -19,7 +19,8 @@ import {
     Plus,
     Camera,
     LayoutGrid,
-    Shirt
+    Shirt,
+    ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,10 @@ import { Slider } from "@/components/ui/slider";
 import { useTryOnStore, FileEntry } from "./store";
 import { toast } from "sonner";
 import { FileExplorer } from "@/components/file-explorer";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { runMakeItMore } from "./actions";
 import { useRouter } from "next/navigation";
 import { ModelSelector } from "@/components/model-selector";
@@ -76,8 +78,10 @@ export default function ProductToModelPage() {
             .catch(err => console.error("Failed to load categories", err));
     }, []);
 
-
     const router = useRouter();
+
+    const mainCategories = categories.filter(c => !["earrings", "necklace", "bracelet", "rings", "shoes", "watch", "handbag"].includes(c.value));
+    const accessoryCategories = categories.filter(c => ["earrings", "necklace", "bracelet", "rings", "shoes", "watch", "handbag"].includes(c.value));
 
     // Real Generation
     const handleRun = async () => {
@@ -213,26 +217,50 @@ export default function ProductToModelPage() {
             </header>
             <div className="px-6 py-2 flex items-center justify-between border-b bg-white/50 backdrop-blur-sm">
                 <div className="flex items-center gap-4 overflow-x-auto pb-1 no-scrollbar">
-                    {/* Category Tabs */}
-                    <Tabs value={category} onValueChange={(v: any) => setParam("category", v)} className="h-8">
-                        <TabsList className="h-8 bg-zinc-100/80 p-0.5 rounded-lg border border-zinc-200/50">
-                            {categories.length > 0 ? categories.map(cat => (
-                                <TabsTrigger
-                                    key={cat.value}
-                                    value={cat.value}
-                                    className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                                >
-                                    {cat.label}
-                                </TabsTrigger>
-                            )) : (
-                                <>
-                                    <TabsTrigger value="tops" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Tops</TabsTrigger>
-                                    <TabsTrigger value="bottoms" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Bottoms</TabsTrigger>
-                                    <TabsTrigger value="one-pieces" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">One-Pieces</TabsTrigger>
-                                </>
-                            )}
-                        </TabsList>
-                    </Tabs>
+                    {/* Category Tabs & Accessories Dropdown */}
+                    <div className="flex items-center gap-2">
+                        <Tabs value={category} onValueChange={(v: any) => setParam("category", v)} className="h-8">
+                            <TabsList className="h-8 bg-zinc-100/80 p-0.5 rounded-lg border border-zinc-200/50">
+                                {categories.length > 0 ? mainCategories.map(cat => (
+                                    <TabsTrigger
+                                        key={cat.value}
+                                        value={cat.value}
+                                        className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                                    >
+                                        {cat.label}
+                                    </TabsTrigger>
+                                )) : (
+                                    <>
+                                        <TabsTrigger value="tops" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Tops</TabsTrigger>
+                                        <TabsTrigger value="bottoms" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Bottoms</TabsTrigger>
+                                        <TabsTrigger value="one-pieces" className="text-xs h-7 rounded-md px-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">One-Pieces</TabsTrigger>
+                                    </>
+                                )}
+                            </TabsList>
+                        </Tabs>
+
+                        {accessoryCategories.length > 0 && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className={cn("h-8 rounded-lg text-xs font-medium bg-zinc-100/80 border-transparent hover:bg-zinc-200/50 hover:text-zinc-900", accessoryCategories.some(c => c.value === category) && "bg-white border-zinc-200 shadow-sm text-foreground")}>
+                                        {accessoryCategories.find(c => c.value === category)?.label || "Accessories"}
+                                        <ChevronDown className="ml-2 h-3 w-3 opacity-50" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-[160px]">
+                                    {accessoryCategories.map(cat => (
+                                        <DropdownMenuItem
+                                            key={cat.value}
+                                            onClick={() => setParam("category", cat.value)}
+                                            className={cn("text-xs cursor-pointer", category === cat.value && "bg-zinc-100 font-medium")}
+                                        >
+                                            {cat.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                    </div>
 
                     <Separator orientation="vertical" className="h-5" />
 
@@ -274,15 +302,15 @@ export default function ProductToModelPage() {
                                         <span className="text-[10px] text-muted-foreground">Consistent, good instruction</span>
                                     </div>
                                 </SelectItem>
-                                <SelectItem value="balanced" textValue="4K">
+                                <SelectItem value="hd" textValue="4K">
                                     <div className="flex flex-col gap-0.5">
                                         <span className="font-medium">Balanced 4K <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
                                         <span className="text-[10px] text-muted-foreground">Sharp detail, moderate creativity</span>
                                     </div>
                                 </SelectItem>
-                                <SelectItem value="creative" textValue="4K">
+                                <SelectItem value="creative" textValue="Creative">
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="font-medium">Creative 4K <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
+                                        <span className="font-medium">Creative <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
                                         <span className="text-[10px] text-muted-foreground">UHD, high styling</span>
                                     </div>
                                 </SelectItem>
@@ -576,6 +604,7 @@ function FileExplorerDialog({ onSelect, multiSelect, children }: { onSelect: (f:
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="max-w-4xl h-[70vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl">
+                <DialogTitle className="sr-only">Select Asset</DialogTitle>
                 <div className="px-6 py-4 border-b bg-zinc-50">
                     <h2 className="text-lg font-semibold">Select Asset {multiSelect && "(Multi-Select)"}</h2>
                 </div>
@@ -593,6 +622,7 @@ function FileExplorerDialog({ onSelect, multiSelect, children }: { onSelect: (f:
                         }}
                         className="h-full border-none shadow-none rounded-none"
                         initialPath=""
+                        syncStore={false}
                     />
                 </div>
             </DialogContent>

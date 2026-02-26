@@ -65,7 +65,7 @@ export function FolderTree({ path = "", level = 0, onSelect, selectedPath }: Fol
     // Root container
     if (level === 0 && !path) {
         return (
-            <div className="pl-2">
+            <div className="pl-2 min-w-fit">
                 {loading && <Loader2 className="w-4 h-4 animate-spin mb-2" />}
                 {folders.map((folder) => (
                     <FolderTree

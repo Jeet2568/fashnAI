@@ -8,7 +8,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileToBase64, getUniqueFilename, determineResultsDir } from "@/lib/server-utils";
 
-const MAX_POLLS = 60; // 2 minutes approx
+const MAX_POLLS = 150; // Increased to 5 minutes for high-resolution renders
 const POLL_INTERVAL = 2000;
 
 /**
@@ -18,19 +18,10 @@ export async function runMakeItMore(
     state: any,
     formData: FormData
 ) {
+    let dbJobId: string | null = null;
     try {
-        const nasRoot = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
-        const resolvePath = (p: string) => {
-            if (p.startsWith("/api/filesystem/image")) {
-                const clean = p.split("?path=")[1]?.split("&")[0] || "";
-                const decoded = decodeURIComponent(clean);
-                return path.isAbsolute(decoded) ? decoded : path.join(nasRoot, decoded);
-            }
-            if (p.startsWith("/uploads/")) {
-                return path.join(process.cwd(), "public", p);
-            }
-            return path.isAbsolute(p) ? p : path.join(nasRoot, p);
-        };
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
 
         const modelPath = formData.get("model") as string;
         const garmentPath = formData.get("garment") as string;
@@ -46,6 +37,30 @@ export async function runMakeItMore(
             aspect_ratio: formData.get("aspect_ratio") as string || "3:4",
             num_samples: formData.get("num_samples") ? Number(formData.get("num_samples")) : 1
         };
+
+        const dbJob = await prisma.job.create({
+            data: {
+                userId: user.id,
+                status: "PROCESSING",
+                inputParams: JSON.stringify({ type: "product-to-model", model: modelPath, garment: garmentPath, background: backgroundPath, prompts: promptsJson, options }),
+            }
+        });
+        dbJobId = dbJob.id;
+
+        const nasRoot = await getSetting(SETTINGS_KEYS.NAS_ROOT_PATH, process.env.NAS_ROOT_PATH || "");
+        const resolvePath = (p: string) => {
+            if (p.startsWith("/api/filesystem/image")) {
+                const clean = p.split("?path=")[1]?.split("&")[0] || "";
+                const decoded = decodeURIComponent(clean);
+                return path.isAbsolute(decoded) ? decoded : path.join(nasRoot, decoded);
+            }
+            if (p.startsWith("/uploads/")) {
+                return path.join(process.cwd(), "public", p);
+            }
+            return path.isAbsolute(p) ? p : path.join(nasRoot, p);
+        };
+
+        // Options parsed above
 
         // Validate Paths
         if (!garmentPath) throw new Error("Garment image is required");
@@ -75,6 +90,11 @@ export async function runMakeItMore(
             let initialResponse;
             const seed = options.seed ? Number(options.seed) + index : undefined; // Shift seed for variation
 
+            // Stagger start to avoid hitting 524 timeouts from instant API concurrency
+            if (index > 0) {
+                await new Promise(r => setTimeout(r, index * 600));
+            }
+
             if (modelPath) {
                 // Case A: TRY-ON (Model + Garment)
                 const modelImage = await fileToBase64(absModelPath!);
@@ -100,10 +120,10 @@ export async function runMakeItMore(
                     product_image: garmentImage,
                     prompt: prompt,
                     aspect_ratio: options.aspect_ratio as any,
-                    num_images: 1, // Always 1 per slot
+                    resolution: options.quality === "hd" ? "4k" : undefined,
+                    num_images: options.num_samples,
                     seed,
                     background_reference: backgroundImage,
-                    hd: (options.quality === "balanced" || options.quality === "creative") ? true : undefined,
                     // adjust_hands, restore_clothes, restore_background, garment_photo_type are NOT supported in Product To Model
                 });
             }
@@ -173,16 +193,27 @@ export async function runMakeItMore(
             }
         }
 
-        // 6. Log Global Job (Optional, just logging the batch)
         try {
-            const user = await getCurrentUser();
-            if (user) {
-                await prisma.job.create({
+            await prisma.job.update({
+                where: { id: dbJobId },
+                data: {
+                    status: "COMPLETED",
+                    outputPaths: JSON.stringify(allSavedPaths),
+                }
+            });
+
+            // Deduct credits (1 per saved image)
+            const savedCount = allSavedPaths.length;
+            if (savedCount > 0 && user) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { credits: { decrement: savedCount } }
+                });
+                await prisma.creditLog.create({
                     data: {
                         userId: user.id,
-                        status: "COMPLETED",
-                        inputParams: JSON.stringify({ prompts, options }),
-                        outputPaths: JSON.stringify(allSavedPaths),
+                        amount: -savedCount,
+                        reason: `Product-to-model: ${savedCount} image(s) generated`
                     }
                 });
             }
@@ -194,6 +225,17 @@ export async function runMakeItMore(
 
     } catch (error: any) {
         console.error("Batch Job Failed:", error);
+        if (dbJobId) {
+            try {
+                await prisma.job.update({
+                    where: { id: dbJobId },
+                    data: {
+                        status: "FAILED",
+                        error: error.message || "Unknown error"
+                    }
+                });
+            } catch (e) { }
+        }
         return { success: false, error: error.message };
     }
 }

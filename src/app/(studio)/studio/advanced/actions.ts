@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { fashnClient } from "@/lib/fashn/client";
 import { getSetting, SETTINGS_KEYS } from "@/lib/settings";
@@ -61,34 +61,71 @@ export async function runAdvancedBatch(payloadJson: string) {
                 }
             }
 
-            // Construct Mega Prompt
-            const promptParts = [];
-            // "A {gender} wearing {garmentType}" is sometimes redundant if Fashn AI prefers pure scene description for backgrounds,
-            // but product-to-model allows full description.
-            const gender = global.gender || "woman";
-            promptParts.push(`A ${gender}`);
-            if (global.garmentType) promptParts.push(`wearing a women's ${global.garmentType}`);
-            if (config.posePrompt) promptParts.push(config.posePrompt);
-            if (config.anglePrompt) promptParts.push(config.anglePrompt);
-            if (config.accessoriesPrompt) promptParts.push(`Styled with women's accessories: ${config.accessoriesPrompt}`);
+            // Construct prompt following official Fashn prompting guide:
+            // 1. Shot summary (model description)
+            // 2. Accessories / styling (important — placed early for visibility)
+            // 3. Pose and framing
+            // 4. Background and setting
+            // NOTE: Do NOT describe the product/garment — the API reads it from the product_image
+            const genderWord = global.gender === "male" ? "man" : "woman";
+            const promptParts: string[] = [];
 
-            if (global.bgType === "prompt" && global.bgPrompt) {
-                promptParts.push(`Background setting: ${global.bgPrompt}`);
+            // Shot summary
+            promptParts.push(`Full body photo of a young adult ${genderWord}`);
+
+            // Accessories — placed early so the model pays attention to them
+            if (config.accessoriesPrompt) {
+                promptParts.push(`wearing ${config.accessoriesPrompt}`);
             }
 
-            const finalPrompt = promptParts.join(". ");
+            // Pose
+            if (config.posePrompt) promptParts.push(config.posePrompt);
 
-            // Product-to-Model API is the most flexible for mixed parameters
+            // Angle / framing
+            if (config.anglePrompt) promptParts.push(config.anglePrompt);
+
+            // Background
+            if (global.bgType === "prompt" && global.bgPrompt) {
+                promptParts.push(global.bgPrompt);
+            }
+
+            // Custom prompt — user-typed add-on instructions
+            if (global.customPrompt) {
+                promptParts.push(global.customPrompt);
+            }
+
+            const finalPrompt = promptParts.join(", ");
+
+            // Stagger start to avoid hitting 524 timeouts from instant API concurrency
+            if (index > 0) {
+                await new Promise(r => setTimeout(r, index * 1000));
+            }
+
+            // Product-to-Model API — official schema
             try {
-                const initialResponse = await fashnClient.runProductToModel({
+                const apiPayload: import("@/lib/fashn/client").ProductToModelInput = {
                     product_image: garmentBase64,
                     model_image: modelBase64,
-                    prompt: finalPrompt || "Fashion portrait",
+                    prompt: finalPrompt || "studio portrait",
                     aspect_ratio: global.ratio as any || "3:4",
+                    resolution: global.resolution as any || "1k",
                     background_reference: modelBase64 ? undefined : bgBase64,
-                    num_images: 1, // 1 per slot
-                    hd: (global.quality === "balanced" || global.quality === "creative") ? true : undefined,
+                    output_format: "png",
+                    num_images: 1,
+                };
+
+                console.log(`[AdvGen] Slot ${config.id} — Payload:`, {
+                    prompt: apiPayload.prompt,
+                    resolution: apiPayload.resolution,
+                    aspect_ratio: apiPayload.aspect_ratio,
+                    output_format: apiPayload.output_format,
+                    has_product_image: !!apiPayload.product_image,
+                    product_image_length: apiPayload.product_image?.length,
+                    has_model_image: !!apiPayload.model_image,
+                    has_background_reference: !!apiPayload.background_reference,
                 });
+
+                const initialResponse = await fashnClient.runProductToModel(apiPayload);
 
                 if (initialResponse.error) {
                     return { error: initialResponse.error, configId: config.id };
@@ -162,8 +199,8 @@ export async function runAdvancedBatch(payloadJson: string) {
                     const savePath = await getUniqueFilename(resultsDir, baseName, ".png");
 
                     await fs.writeFile(savePath, Buffer.from(arrayBuffer));
-                    allSavedPaths.push(savePath);
                     const relPath = path.relative(nasRoot, savePath).replace(/\\/g, '/');
+                    allSavedPaths.push(relPath);
                     finalResults.push({ configId: job.configId, savedPath: relPath });
                 } catch (e: any) {
                     finalResults.push({ configId: job.configId, error: e.message });
@@ -171,11 +208,40 @@ export async function runAdvancedBatch(payloadJson: string) {
             }
         }
 
-        // 5. Log Job in DB
+        // 5. Log Job in DB + deduct credits
         try {
             const user = await getCurrentUser();
-            if (user && allSavedPaths.length > 0) {
-                console.log("Saving job to DB...");
+            if (user) {
+                const totalImages = allSavedPaths.length;
+                const totalFailed = failedJobs.length;
+
+                await prisma.job.create({
+                    data: {
+                        userId: user.id,
+                        status: totalImages > 0 ? "COMPLETED" : "FAILED",
+                        inputParams: JSON.stringify({
+                            type: "advanced-batch",
+                            configs: configs.length,
+                        }),
+                        outputPaths: JSON.stringify(allSavedPaths),
+                        error: totalFailed > 0 ? `${totalFailed} items failed` : null,
+                    }
+                });
+
+                // Deduct credits (1 per successfully saved image)
+                if (totalImages > 0) {
+                    await prisma.user.update({
+                        where: { id: user.id },
+                        data: { credits: { decrement: totalImages } }
+                    });
+                    await prisma.creditLog.create({
+                        data: {
+                            userId: user.id,
+                            amount: -totalImages,
+                            reason: `Advanced batch: ${totalImages} image(s) generated`
+                        }
+                    });
+                }
             }
         } catch (e) {
             console.warn("Failed to log job to DB", e);

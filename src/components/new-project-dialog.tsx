@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -137,7 +137,7 @@ export function NewProjectDialog({ onProjectCreated, children }: NewProjectDialo
                     <div className="text-xs text-muted-foreground p-3 bg-muted rounded-md">
                         <p className="font-semibold mb-1">Will create structure:</p>
                         <code className="block text-[10px] break-all">
-                            CodeVeda AI / {new Date().getMonth() + 1}-{new Date().getFullYear()} / {new Date().toLocaleDateString('en-GB').replace(/\//g, '-')} / XX_{clientName || 'Client'} / YY_{productName || 'Product'} / [RAW, Results]
+                            Studio AI / {new Date().getMonth() + 1}-{new Date().getFullYear()} / {new Date().toLocaleDateString('en-GB').replace(/\//g, '-')} / XX_{clientName || 'Client'} / YY_{productName || 'Product'} / [RAW, Results]
                         </code>
                     </div>
                 </div>

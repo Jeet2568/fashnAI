@@ -65,11 +65,11 @@ export default function UserNotificationsPage() {
                         <p className="text-sm text-zinc-400">No new notifications at the moment.</p>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="flex flex-col space-y-4">
                         {notifications.map((notif) => (
-                            <Card key={notif.id} className="border-l-4 border-l-indigo-600 shadow-sm hover:shadow-md transition-shadow">
-                                <CardContent className="p-5 flex flex-col gap-2">
-                                    <div className="flex justify-between items-start">
+                            <Card key={notif.id} className="border-l-4 border-l-indigo-600 shadow-sm hover:shadow-md transition-all h-fit w-full py-0 gap-0 min-h-0">
+                                <CardContent className="p-4">
+                                    <div className="flex flex-col gap-2">
                                         <div className="font-medium text-zinc-900 leading-relaxed whitespace-pre-wrap">
                                             {notif.message}
                                         </div>

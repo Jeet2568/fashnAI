@@ -15,7 +15,7 @@ import {
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { FileExplorer } from "@/components/file-explorer";
 import { ResourceSelector } from "@/components/resource-selector";
 import { useTryOnStore } from "../product-to-model/store";
@@ -26,6 +26,7 @@ import { runAdvancedBatch } from "./actions";
 import { cn } from "@/lib/utils";
 import { ImagePlus, Images, ChevronDown, LayoutGrid, Sparkles, Image as ImageIcon, RefreshCw, XCircle, FolderOpen, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import Image from "next/image";
 
 interface FileEntry {
     name: string;
@@ -63,6 +64,10 @@ function BreadcrumbSegment({ pathPart, fullPath, isLast, onSelect }: { pathPart:
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
 
+    useEffect(() => {
+        setSubfolders([]);
+    }, [fullPath]);
+
     const handleOpen = async (isOpen: boolean) => {
         setOpen(isOpen);
         if (isOpen && subfolders.length === 0) {
@@ -94,16 +99,7 @@ function BreadcrumbSegment({ pathPart, fullPath, isLast, onSelect }: { pathPart:
                     <ChevronDown className={cn("w-3 h-3 ml-2 text-zinc-400 transition-transform", open && "rotate-180")} />
                 </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[200px]">
-                {!isLast && (
-                    <>
-                        <DropdownMenuItem onClick={() => onSelect(fullPath)} className="font-semibold text-indigo-600 cursor-pointer">
-                            Navigate to {pathPart}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                    </>
-                )}
-
+            <DropdownMenuContent align="start" className="min-w-[200px] max-h-[400px] overflow-y-auto">
                 {loading ? (
                     <div className="flex items-center justify-center p-3 text-zinc-500">
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -126,6 +122,7 @@ function BreadcrumbSegment({ pathPart, fullPath, isLast, onSelect }: { pathPart:
         </DropdownMenu>
     );
 }
+
 
 function RootBreadcrumbSegment({ onSelect, isOnlyRoot }: { onSelect: (path: string) => void, isOnlyRoot: boolean }) {
     const [subfolders, setSubfolders] = useState<FileEntry[]>([]);
@@ -269,9 +266,9 @@ function FolderImageGallery({ folderPath, onDragStartImage }: { folderPath: stri
 export default function AdvancedBatchGeneratePage() {
     // --- Global State ---
     const { selectedFolder, setSelectedFolder } = useStore();
-    const [numPhotos, setNumPhotos] = useState<number>(1);
+    const [numPhotos, setNumPhotos] = useState<string | number>(1);
     const [globalRatio, setGlobalRatio] = useState("3:4");
-    const [globalQuality, setGlobalQuality] = useState("balanced");
+    const [globalResolution, setGlobalResolution] = useState("4k");
 
     const [gender, setGender] = useState<"male" | "female">("female");
     const [garmentType, setGarmentType] = useState("Dress");
@@ -286,18 +283,23 @@ export default function AdvancedBatchGeneratePage() {
     const [accEnabled, setAccEnabled] = useState(false);
     const [selectedAccessories, setSelectedAccessories] = useState<Record<string, ResourceField | null>>({});
 
+    // --- Custom Prompt ---
+    const [customPrompt, setCustomPrompt] = useState("");
+
     // --- Generation State ---
     const [isGenerating, setIsGenerating] = useState(false);
     const [results, setResults] = useState<Record<string, string>>({}); // config.id -> url/path
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     // --- Per Image Configurations ---
     const [configs, setConfigs] = useState<PerImageConfig[]>(
-        Array.from({ length: 5 }, (_, i) => ({ ...DEFAULT_CONFIG, id: `photo-${i + 1}` }))
+        Array.from({ length: 1 }, (_, i) => ({ ...DEFAULT_CONFIG, id: `photo-${i + 1}` }))
     );
 
-    const handleNumPhotosChange = (newCount: number) => {
-        if (newCount < 1 || newCount > 20) return;
-        setNumPhotos(newCount);
+    const handleNumPhotosChange = (val: string) => {
+        setNumPhotos(val);
+        const newCount = parseInt(val);
+        if (isNaN(newCount) || newCount < 1 || newCount > 50) return;
 
         setConfigs(prev => {
             if (newCount > prev.length) {
@@ -344,14 +346,15 @@ export default function AdvancedBatchGeneratePage() {
                     accessoriesPrompt: accEnabled ? Object.values(selectedAccessories).map(a => a?.prompt).filter(Boolean).join(", ") : undefined
                 })),
                 global: {
-                    numPhotos,
+                    numPhotos: parseInt(numPhotos.toString()) || 1,
                     ratio: globalRatio,
-                    quality: globalQuality,
+                    resolution: globalResolution,
                     gender,
                     garmentType,
                     bgType,
                     bgPrompt,
-                    bgPath: bgType === "upload" ? uploadedBackground?.path : (bgType === "select" ? selectedBackground?.thumbnail : undefined)
+                    bgPath: bgType === "upload" ? uploadedBackground?.path : (bgType === "select" ? selectedBackground?.thumbnail : undefined),
+                    customPrompt: customPrompt.trim() || undefined
                 }
             };
 
@@ -384,7 +387,7 @@ export default function AdvancedBatchGeneratePage() {
             );
         }
 
-        const parts = selectedFolder.split('/').filter(Boolean);
+        const parts = selectedFolder.replace(/\\/g, '/').split('/').filter(Boolean);
         return (
             <div className="flex items-center gap-1.5 text-sm overflow-x-auto pb-1 scrollbar-hide py-1">
                 <RootBreadcrumbSegment onSelect={setSelectedFolder} isOnlyRoot={false} />
@@ -392,7 +395,7 @@ export default function AdvancedBatchGeneratePage() {
                 {parts.map((part, i) => {
                     const path = parts.slice(0, i + 1).join("/");
                     return (
-                        <div key={i} className="flex items-center gap-1.5 shrink-0">
+                        <div key={path} className="flex items-center gap-1.5 shrink-0">
                             <span className="text-zinc-300">/</span>
                             <BreadcrumbSegment
                                 pathPart={part}
@@ -433,7 +436,15 @@ export default function AdvancedBatchGeneratePage() {
                                 min={1}
                                 max={50}
                                 value={numPhotos}
-                                onChange={(e) => handleNumPhotosChange(parseInt(e.target.value) || 1)}
+                                onChange={(e) => handleNumPhotosChange(e.target.value)}
+                                onBlur={() => {
+                                    const parsed = parseInt(numPhotos.toString());
+                                    if (isNaN(parsed) || parsed < 1) {
+                                        handleNumPhotosChange("1");
+                                    } else if (parsed > 50) {
+                                        handleNumPhotosChange("50");
+                                    }
+                                }}
                                 className="w-16 h-9 text-center bg-white border shadow-sm rounded-full text-xs font-medium focus-visible:ring-1"
                             />
 
@@ -444,7 +455,7 @@ export default function AdvancedBatchGeneratePage() {
                                         <SelectValue />
                                     </span>
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper" sideOffset={4} className="z-[200]">
                                     <SelectItem value="1:1">1:1 Square</SelectItem>
                                     <SelectItem value="3:4">3:4 Portrait</SelectItem>
                                     <SelectItem value="4:3">4:3 Landscape</SelectItem>
@@ -452,30 +463,24 @@ export default function AdvancedBatchGeneratePage() {
                                 </SelectContent>
                             </Select>
 
-                            <Select value={globalQuality} onValueChange={setGlobalQuality}>
+                            <Select value={globalResolution} onValueChange={setGlobalResolution}>
                                 <SelectTrigger className="h-9 px-3 rounded-full border bg-white hover:bg-zinc-50 transition-colors text-xs font-medium focus:ring-0 shadow-sm min-w-[70px]">
                                     <span className="flex items-center gap-2">
                                         <Sparkles className="h-3.5 w-3.5 text-zinc-500" />
                                         <SelectValue />
                                     </span>
                                 </SelectTrigger>
-                                <SelectContent className="min-w-[220px]">
-                                    <SelectItem value="precise" textValue="1K">
+                                <SelectContent position="popper" sideOffset={4} className="min-w-[220px] z-[200]">
+                                    <SelectItem value="1k" textValue="1K">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className="font-medium">Precise 1K</span>
-                                            <span className="text-[10px] text-muted-foreground">Consistent, good instruction</span>
+                                            <span className="font-medium">1K Precise</span>
+                                            <span className="text-[10px] text-muted-foreground">Fast, best for catalog without model image</span>
                                         </div>
                                     </SelectItem>
-                                    <SelectItem value="balanced" textValue="4K">
+                                    <SelectItem value="4k" textValue="4K">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className="font-medium">Balanced 4K <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
-                                            <span className="text-[10px] text-muted-foreground">Sharp detail, moderate creativity</span>
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="creative" textValue="4K">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="font-medium">Creative 4K <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
-                                            <span className="text-[10px] text-muted-foreground">UHD, high styling</span>
+                                            <span className="font-medium">4K Creative <Badge variant="secondary" className="text-[10px] px-1 py-0 h-auto">PRO</Badge></span>
+                                            <span className="text-[10px] text-muted-foreground">Best for model try-on, richer product detail</span>
                                         </div>
                                     </SelectItem>
                                 </SelectContent>
@@ -722,17 +727,6 @@ export default function AdvancedBatchGeneratePage() {
                         )}
                     </div>
 
-                    <div className="w-px h-6 bg-slate-200" />
-
-                    {/* ROW 8: Pose Title (Global) */}
-                    <div className="flex justify-center w-full">
-                        <div className="bg-white px-6 py-2 border rounded-lg shadow-sm text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                            Configure Stance
-                        </div>
-                    </div>
-
-                    <div className="w-px h-6 bg-slate-200" />
-
                     {/* ROW 9: Select Pose (Per Image) */}
                     <div className="flex gap-6 w-full justify-center relative">
                         <div className="absolute top-[20px] w-full h-px bg-slate-200 -z-10" />
@@ -860,6 +854,20 @@ export default function AdvancedBatchGeneratePage() {
                         )}
                     </div>
 
+                    {/* Custom Prompt */}
+                    <div className={globalSectionClass}>
+                        <div className="flex flex-col items-center gap-3 w-full max-w-2xl">
+                            <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Custom Prompt (Optional)</span>
+                            <textarea
+                                value={customPrompt}
+                                onChange={(e) => setCustomPrompt(e.target.value)}
+                                placeholder="Add any extra instructions, e.g. 'soft studio lighting, relaxed confident pose, light grey background'"
+                                className="w-full h-20 px-4 py-3 bg-zinc-50 border shadow-sm rounded-lg transition-all focus:bg-white focus:ring-1 focus:ring-indigo-300 focus:outline-none text-sm text-zinc-700 placeholder:text-zinc-400 resize-none"
+                            />
+                            <p className="text-[10px] text-zinc-400">This text is appended to the auto-generated prompt for fine-tuning results.</p>
+                        </div>
+                    </div>
+
                     {/* ROW 14: Output Placeholders (Per Image) */}
                     <div className="flex gap-6 w-full justify-center mt-12 mb-12 relative">
                         <div className="absolute top-[20px] w-full h-px bg-slate-200 -z-10" />
@@ -869,7 +877,7 @@ export default function AdvancedBatchGeneratePage() {
                                     <>
                                         <img src={results[config.id]} alt={`Result ${i + 1}`} className="w-full h-full object-cover" />
                                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                            <Button variant="secondary" size="sm" onClick={() => window.open(results[config.id], "_blank")}>View</Button>
+                                            <Button variant="secondary" size="sm" onClick={() => setPreviewImage(results[config.id])}>View</Button>
                                         </div>
                                     </>
                                 ) : isGenerating ? (
@@ -891,6 +899,24 @@ export default function AdvancedBatchGeneratePage() {
                 <ScrollBar orientation="horizontal" className="h-3 bg-zinc-100 border-t" />
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
+
+            {/* Image Preview Modal */}
+            <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+                <DialogContent showCloseButton={false} className="max-w-[90vw] max-h-[90vh] p-1 bg-transparent border-none shadow-none flex items-center justify-center">
+                    <DialogTitle className="sr-only">Image Preview</DialogTitle>
+                    {previewImage && (
+                        <div className="relative w-full h-[85vh]">
+                            <Image
+                                src={previewImage.startsWith('/') ? previewImage : `/${previewImage}`}
+                                alt="Preview"
+                                fill
+                                className="object-contain"
+                                unoptimized
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -902,6 +928,7 @@ function FileExplorerDialog({ onSelect, multiSelect, initialPath, children }: { 
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="max-w-4xl h-[70vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl">
+                <DialogTitle className="sr-only">Select Input Image</DialogTitle>
                 <div className="px-6 py-4 border-b bg-zinc-50 flex items-center justify-between">
                     <h2 className="text-lg font-semibold">Select Input Image</h2>
                 </div>
@@ -919,6 +946,7 @@ function FileExplorerDialog({ onSelect, multiSelect, initialPath, children }: { 
                         }}
                         className="h-full border-none shadow-none rounded-none"
                         initialPath={initialPath || ""}
+                        syncStore={false}
                     />
                 </div>
             </DialogContent>

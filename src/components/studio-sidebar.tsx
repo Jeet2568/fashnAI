@@ -12,7 +12,6 @@ import {
     Shirt,
     History,
     Camera,
-    ArrowLeftRight,
     User,
     LogOut,
     Bell
@@ -20,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { logout } from "@/app/actions";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export function StudioSidebar() {
     const pathname = usePathname();
@@ -34,7 +34,7 @@ export function StudioSidebar() {
     const checkActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
     return (
-        <div className="space-y-4 py-4 flex flex-col h-full bg-[#FDFBF7] text-slate-900 border-r">
+        <div className="space-y-4 py-4 flex flex-col h-full bg-background text-slate-900 border-r">
             <div className="px-3 py-2 flex-1">
                 <Link href="/studio" className="flex items-center pl-3 mb-8">
                     <div className="relative w-8 h-8 mr-2 bg-black rounded-lg flex items-center justify-center">
@@ -51,7 +51,7 @@ export function StudioSidebar() {
                         href="/studio"
                         className={cn(
                             "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                            pathname === "/studio" ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                            pathname === "/studio" ? "bg-accent text-accent-foreground" : "text-slate-600"
                         )}
                     >
                         <div className="flex items-center flex-1">
@@ -73,49 +73,16 @@ export function StudioSidebar() {
                             <ChevronDown className={cn("h-3 w-3 transition-transform", isStudioOpen ? "rotate-180" : "")} />
                         </button>
 
-                        {isStudioOpen && (
+                        <div className={cn(
+                            "overflow-hidden transition-all duration-300 ease-in-out",
+                            isStudioOpen ? "max-h-48 opacity-100 mt-2" : "max-h-0 opacity-0 mt-0"
+                        )}>
                             <div className="pl-4 space-y-1 ml-2 border-l border-slate-200">
-                                <Link
-                                    href="/studio/product-to-model"
-                                    className={cn(
-                                        "text-sm group flex p-2 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                        checkActive("/studio/product-to-model") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
-                                    )}
-                                >
-                                    <div className="flex items-center flex-1">
-                                        <Shirt className="h-4 w-4 mr-3" />
-                                        Product to Model
-                                    </div>
-                                </Link>
-                                <Link
-                                    href="/studio/model-swap"
-                                    className={cn(
-                                        "text-sm group flex p-2 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                        checkActive("/studio/model-swap") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
-                                    )}
-                                >
-                                    <div className="flex items-center flex-1">
-                                        <ArrowLeftRight className="h-4 w-4 mr-3" />
-                                        Model Swap
-                                    </div>
-                                </Link>
-                                <Link
-                                    href="/studio/try-on"
-                                    className={cn(
-                                        "text-sm group flex p-2 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                        checkActive("/studio/try-on") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
-                                    )}
-                                >
-                                    <div className="flex items-center flex-1">
-                                        <User className="h-4 w-4 mr-3" />
-                                        Try-On (Standard)
-                                    </div>
-                                </Link>
                                 <Link
                                     href="/studio/advanced"
                                     className={cn(
                                         "text-sm group flex p-2 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                        checkActive("/studio/advanced") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                        checkActive("/studio/advanced") ? "bg-accent text-accent-foreground" : "text-slate-600"
                                     )}
                                 >
                                     <div className="flex items-center flex-1">
@@ -123,8 +90,19 @@ export function StudioSidebar() {
                                         Advanced Gen
                                     </div>
                                 </Link>
+
+
+                                <button
+                                    onClick={() => toast.info("Coming soon...")}
+                                    className="text-sm group flex p-2 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1 text-slate-600"
+                                >
+                                    <div className="flex items-center flex-1">
+                                        <Shirt className="h-4 w-4 mr-3" />
+                                        Product
+                                    </div>
+                                </button>
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* Tools / Others */}
@@ -134,7 +112,7 @@ export function StudioSidebar() {
                             href="/studio/gallery"
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                checkActive("/studio/gallery") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                checkActive("/studio/gallery") ? "bg-accent text-accent-foreground" : "text-slate-600"
                             )}
                         >
                             <div className="flex items-center flex-1">
@@ -146,7 +124,7 @@ export function StudioSidebar() {
                             href="/studio/edit"
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                checkActive("/studio/edit") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                checkActive("/studio/edit") ? "bg-accent text-accent-foreground" : "text-slate-600"
                             )}
                         >
                             <div className="flex items-center flex-1">
@@ -158,7 +136,7 @@ export function StudioSidebar() {
                             href="/studio/resources"
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                checkActive("/studio/resources") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                checkActive("/studio/resources") ? "bg-accent text-accent-foreground" : "text-slate-600"
                             )}
                         >
                             <div className="flex items-center flex-1">
@@ -170,7 +148,7 @@ export function StudioSidebar() {
                             href="/studio/history"
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                checkActive("/studio/history") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                checkActive("/studio/history") ? "bg-accent text-accent-foreground" : "text-slate-600"
                             )}
                         >
                             <div className="flex items-center flex-1">
@@ -182,7 +160,7 @@ export function StudioSidebar() {
                             href="/studio/notifications"
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:bg-slate-200/50 rounded-lg transition mb-1",
-                                checkActive("/studio/notifications") ? "bg-[#EBE5D5] text-slate-900" : "text-slate-600"
+                                checkActive("/studio/notifications") ? "bg-accent text-accent-foreground" : "text-slate-600"
                             )}
                         >
                             <div className="flex items-center flex-1">
@@ -207,6 +185,6 @@ export function StudioSidebar() {
                     </div>
                 </button>
             </div>
-        </div>
+        </div >
     );
 }
